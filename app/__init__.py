@@ -24,11 +24,13 @@ def create_app(config_class=Config):
     from .routes.home_routes import home_bp
     from .routes.preprocessing_routes import preprocessing_bp
     from .routes.history_routes import history_bp
+    from .routes.model_routes import model_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(file_bp)  # 注册文件蓝图
     app.register_blueprint(home_bp)
     app.register_blueprint(preprocessing_bp)
     app.register_blueprint(history_bp)
+    app.register_blueprint(model_bp)
 
     return app

@@ -8,5 +8,12 @@
       <jdbc-url>jdbc:postgresql://localhost:5432/ragdb</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
+    <data-source source="LOCAL" name="data-analysis@121.41.69.216" uuid="4aa8f626-ef78-4aea-8744-0893d4700524">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://121.41.69.216:5432/data-analysis</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>
