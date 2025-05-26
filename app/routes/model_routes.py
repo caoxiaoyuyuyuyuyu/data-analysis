@@ -227,8 +227,7 @@ def train_model():
         )
 
         # 计算训练时长
-        duration = datetime.utcnow() - start_time
-        duration_interval = text(f"'{duration.total_seconds()} seconds'::interval")
+        duration = (datetime.utcnow() - start_time).total_seconds()
 
         # 保存模型
         model_name_save = data.get('model_name', f'model_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
@@ -236,31 +235,24 @@ def train_model():
 
         # 创建模型记录
         new_model = TrainingRecord(
-            file_id=data['file_id'],
             user_id=current_user['user_id'],
+            file_id=data['file_id'],
             file_name=file.file_name,
-            model_name=model_name_save,
-            model_parameters=model_params,
+            model_name=model_name,
+            duration=duration,
             metrics=result['metrics'],
-            model_path=model_path,
-            duration=duration_interval,
-            training_time=start_time
+            model_parameters=model_params,
+            learning_curve=result['learning_curve'],
+            created_at=datetime.utcnow(),
+            updated_at = datetime.utcnow(),
+            model_file_path=model_path,
+            model_file_size=os.path.getsize(model_path),
         )
         db.session.add(new_model)
         db.session.commit()
 
         # 返回结果
-        response = {
-            'id': new_model.id,
-            'model_name': new_model.model_name,
-            'file_id': new_model.file_id,
-            'file_name': new_model.file_name,
-            'training_time': new_model.training_time.isoformat(),
-            'metrics': new_model.metrics,
-            'model_parameters': new_model.model_parameters,
-            'duration': new_model.duration.total_seconds(),
-            'learning_curve': result.get('learning_curve')
-        }
+        response = new_model.to_dict()
 
         return jsonify(response), 201
 

@@ -18,19 +18,9 @@ def get_training_history():
         current_user = request.user
         records = TrainingRecord.query.filter_by(
             user_id=current_user["user_id"]
-        ).order_by(TrainingRecord.training_time.desc()).all()
+        ).order_by(TrainingRecord.created_at.desc()).all()
 
-        return jsonify([{
-            "id": record.id,
-            "file_id": record.file_id,
-            "file_name": record.file_name,
-            "model_name": record.model_name,
-            "model_parameters": record.model_parameters,
-            "training_time": record.training_time.isoformat(),
-            "metrics": record.metrics,
-            "duration": record.duration.total_seconds(),  # 直接返回数值
-            "feature_importance": record.feature_importance
-        } for record in records])
+        return jsonify([record.to_dict() for record in records])
     except Exception as e:
         current_app.logger.error(f"Get training history error: {str(e)}")
         return jsonify({"error": "Failed to get training history"}), 500
@@ -48,17 +38,7 @@ def get_training_record(record_id):
         if not record:
             return jsonify({"error": "Record not found"}), 404
 
-        return jsonify({
-            "id": record.id,
-            "file_id": record.file_id,
-            "file_name": record.file_name,
-            "model_name": record.model_name,
-            "model_parameters": record.model_parameters,
-            "training_time": record.training_time.isoformat(),
-            "metrics": record.metrics,
-            "duration": record.duration.total_seconds(),
-            "feature_importance": record.feature_importance
-        })
+        return jsonify(record.to_dict())
     except Exception as e:
         current_app.logger.error(f"Get training record error: {str(e)}")
         return jsonify({"error": "Failed to get training record"}), 500
