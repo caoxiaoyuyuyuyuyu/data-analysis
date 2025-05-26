@@ -28,7 +28,7 @@ def get_training_history():
             "model_parameters": record.model_parameters,
             "training_time": record.training_time.isoformat(),
             "metrics": record.metrics,
-            "duration": record.duration,  # 直接返回数值
+            "duration": record.duration.total_seconds(),  # 直接返回数值
             "feature_importance": record.feature_importance
         } for record in records])
     except Exception as e:

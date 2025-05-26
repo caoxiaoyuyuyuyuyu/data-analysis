@@ -20,7 +20,7 @@ class UserFileResponse:
 
 file_bp = Blueprint('files', __name__, url_prefix='/files')
 
-ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls', 'json'}
+ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls', 'txt'}
 
 def allowed_file(filename):
     return '.' in filename and \

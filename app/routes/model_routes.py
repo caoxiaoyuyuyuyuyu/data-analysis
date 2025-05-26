@@ -1,7 +1,15 @@
 # app/routes/model_routes.py
-from flask import Blueprint, jsonify, request
+import os
+
+import joblib
+import pandas as pd
+from flask import Blueprint, jsonify, request, current_app
+from sqlalchemy import text
+
+from app.models.file_model import UserFile
 from app.models.model_config import ModelConfig, ModelParameter
 from app.extensions import db
+from app.models.training_record import TrainingRecord
 from app.utils.jwt_utils import login_required
 from datetime import datetime
 
@@ -147,3 +155,125 @@ def update_model_config(model_type):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+from app.core.model_trainer import ModelTrainer
+from app.core.data_loader import dataloader
+@model_bp.route('/train', methods=['POST'])
+@login_required
+def train_model():
+    try:
+        data = request.get_json()
+        current_user = request.user
+
+        # 验证必要字段
+        required_fields = ['file_id', 'target_column', 'model_config']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': f'Missing required fields: {required_fields}'}), 400
+
+        # 获取文件数据
+        file = UserFile.query.get(data['file_id'])
+        if not file:
+            return jsonify({'error': 'File not found'}), 404
+
+        # 读取文件数据
+        df = dataloader.load_file(file.file_path)
+
+        # 检查目标列是否存在
+        if data['target_column'] not in df.columns:
+            return jsonify({'error': f'Target column "{data["target_column"]}" not found in file'}), 400
+
+        # 准备训练数据
+        X = df.drop(columns=[data['target_column']])
+        y = df[data['target_column']]
+
+        # 初始化模型训练器
+        trainer = ModelTrainer()
+
+        # 获取模型配置
+        model_type = data['model_config']['model_type']
+        model_params = data['model_config'].get('parameters', {})
+        test_size = data.get('test_size', 0.2)
+
+        # 扩展模型类型映射
+        model_name_map = {
+            'Linear_Regression': 'Linear Regression',
+            'Ridge_Regression': 'Ridge Regression',
+            'Lasso_Regression': 'Lasso Regression',
+            'Decision_Tree_Classifier': 'Decision Tree',
+            'Decision_Tree_Regressor': 'Decision Tree',
+            'Random_Forest_Classifier': 'Random Forest',
+            'Random_Forest_Regressor': 'Random Forest',
+            'SVM_Classifier': 'SVM',
+            'SVM_Regressor': 'SVR',
+            'KNN_Classifier': 'KNN Classification',
+            'KNN_Regressor': 'KNN Regression',
+            'Logistic_Regression': 'Logistic Regression',
+            'Polynomial_Regression': 'Polynomial Regression'
+        }
+
+        model_name = model_name_map.get(model_type)
+        if not model_name:
+            return jsonify({'error': f'Unsupported model type: {model_type}'}), 400
+
+        # 记录开始时间
+        start_time = datetime.utcnow()
+
+        # 训练模型
+        result = trainer.train_model(
+            X, y,
+            model_name=model_name,
+            test_size=test_size,
+            **model_params
+        )
+
+        # 计算训练时长
+        duration = datetime.utcnow() - start_time
+        duration_interval = text(f"'{duration.total_seconds()} seconds'::interval")
+
+        # 保存模型
+        model_name_save = data.get('model_name', f'model_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
+        model_path = save_model_to_file(result['model'], model_name_save, current_user['user_id'])
+
+        # 创建模型记录
+        new_model = TrainingRecord(
+            file_id=data['file_id'],
+            user_id=current_user['user_id'],
+            file_name=file.file_name,
+            model_name=model_name_save,
+            model_parameters=model_params,
+            metrics=result['metrics'],
+            model_path=model_path,
+            duration=duration_interval,
+            training_time=start_time
+        )
+        db.session.add(new_model)
+        db.session.commit()
+
+        # 返回结果
+        response = {
+            'id': new_model.id,
+            'model_name': new_model.model_name,
+            'file_id': new_model.file_id,
+            'file_name': new_model.file_name,
+            'training_time': new_model.training_time.isoformat(),
+            'metrics': new_model.metrics,
+            'model_parameters': new_model.model_parameters,
+            'duration': new_model.duration.total_seconds(),
+            'learning_curve': result.get('learning_curve')
+        }
+
+        return jsonify(response), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+def save_model_to_file(model, model_name,user_id):
+    """保存模型到文件并返回路径"""
+    model_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user_id), "saved_models")
+    os.makedirs(model_dir, exist_ok=True)
+
+    model_path = os.path.join(model_dir, f'{model_name}.pkl')
+    joblib.dump(model, model_path)
+
+    return model_path

@@ -52,20 +52,15 @@ def get_preprocessing_data(file_id):
         current_app.logger.error(f"Data processing error: {str(e)}")
         return jsonify({"error": "Data processing failed"}), 500
 
+from app.core.data_loader import dataloader
 def load_dataframe(file_record):
     """加载数据文件到DataFrame"""
     try:
-        if file_record.file_type == 'csv':
-            return pd.read_csv(file_record.file_path)
-        elif file_record.file_type in ['xlsx', 'xls']:
-            return pd.read_excel(file_record.file_path)
-        elif file_record.file_type == 'json':
-            return pd.read_json(file_record.file_path)
-        else:
-            return jsonify({"error": "Unsupported file format"}), 400
+        return dataloader.load_file(file_record.file_path)
     except Exception as e:
         current_app.logger.error(f"File loading error: {str(e)}")
         return jsonify({"error": f"Failed to load file: {str(e)}"}), 500
+
 
 def get_data_preview(df, rows=10):
     """获取数据预览"""
