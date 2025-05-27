@@ -242,6 +242,8 @@ def train_model():
             file_name=file.file_name,
             model_name=data['model_name'],
             model_type=data['model_config']['model_type'],
+            target_column=data['target_column'],
+            test_size=test_size,
             duration=duration,
             metrics=result['metrics'],
             model_parameters=model_params,

@@ -11,6 +11,8 @@ class TrainingRecord(db.Model):
     file_name = db.Column(db.String(255), nullable=False)
     model_name = db.Column(db.String(100), nullable=False)
     model_type = db.Column(db.String(100), nullable=False)
+    test_size = db.Column(db.Float, nullable=False)
+    target_column = db.Column(db.String(100), nullable=False)
     duration = db.Column(db.Float, nullable=False)  # 改为Float对应DOUBLE PRECISION
     metrics = db.Column(db.JSON, nullable=False)  # 对应JSONB
     model_parameters = db.Column(db.JSON, nullable=False)  # 对应JSONB
@@ -32,6 +34,9 @@ class TrainingRecord(db.Model):
             'file_id': self.file_id,
             'file_name': self.file_name,
             'model_name': self.model_name,
+            'model_type': self.model_type,
+            'test_size': self.test_size,
+            'target_column': self.target_column,
             'duration': self.duration,
             'metrics': self.metrics,
             'model_parameters': self.model_parameters,
