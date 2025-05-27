@@ -1,7 +1,7 @@
 # history_routes.py
 from flask import Blueprint, jsonify, request, current_app
 from app.models.training_record import TrainingRecord
-from app.models.prediction_record import PredictionRecord
+from app.models.predict_record import PredictionRecord
 from app.models.preprocessing_history import PreprocessingHistory
 from app.utils.jwt_utils import login_required
 from app.extensions import db
