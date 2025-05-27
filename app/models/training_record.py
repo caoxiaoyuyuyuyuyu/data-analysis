@@ -10,6 +10,7 @@ class TrainingRecord(db.Model):
     file_id = db.Column(db.Integer, db.ForeignKey('user_files.id', ondelete='CASCADE'), nullable=False)
     file_name = db.Column(db.String(255), nullable=False)
     model_name = db.Column(db.String(100), nullable=False)
+    model_type = db.Column(db.String(100), nullable=False)
     duration = db.Column(db.Float, nullable=False)  # 改为Float对应DOUBLE PRECISION
     metrics = db.Column(db.JSON, nullable=False)  # 对应JSONB
     model_parameters = db.Column(db.JSON, nullable=False)  # 对应JSONB

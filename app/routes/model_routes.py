@@ -199,20 +199,22 @@ def train_model():
             'Linear_Regression': 'Linear Regression',
             'Ridge_Regression': 'Ridge Regression',
             'Lasso_Regression': 'Lasso Regression',
-            'Decision_Tree_Classifier': 'Decision Tree',
             'Decision_Tree_Regressor': 'Decision Tree',
-            'Random_Forest_Classifier': 'Random Forest',
             'Random_Forest_Regressor': 'Random Forest',
-            'SVM_Classifier': 'SVM',
             'SVM_Regressor': 'SVR',
-            'KNN_Classifier': 'KNN Classification',
             'KNN_Regressor': 'KNN Regression',
+            'Polynomial_Regression': 'Polynomial Regression',
             'Logistic_Regression': 'Logistic Regression',
-            'Polynomial_Regression': 'Polynomial Regression'
+            'KNN_Classifier': 'KNN Classification',
+            'SVM_Classifier': 'SVM',
+            'Random_Forest_Classifier': 'Random Forest',
+            'Decision_Tree_Classifier': 'Decision Tree',
+            'K_Means': 'K-Means',
+            'PCA': 'PCA'
         }
 
-        model_name = model_name_map.get(model_type)
-        if not model_name:
+        model_type = model_name_map.get(model_type)
+        if not model_type:
             return jsonify({'error': f'Unsupported model type: {model_type}'}), 400
 
         # 记录开始时间
@@ -221,7 +223,7 @@ def train_model():
         # 训练模型
         result = trainer.train_model(
             X, y,
-            model_name=model_name,
+            model_name=model_type,
             test_size=test_size,
             **model_params
         )
@@ -238,7 +240,8 @@ def train_model():
             user_id=current_user['user_id'],
             file_id=data['file_id'],
             file_name=file.file_name,
-            model_name=model_name,
+            model_name=data['model_name'],
+            model_type=data['model_config']['model_type'],
             duration=duration,
             metrics=result['metrics'],
             model_parameters=model_params,
