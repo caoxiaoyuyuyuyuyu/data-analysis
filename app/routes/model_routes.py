@@ -193,6 +193,7 @@ def train_model():
         model_type = data['model_config']['model_type']
         model_params = data['model_config'].get('parameters', {})
         test_size = data.get('test_size', 0.2)
+        use_default = data.get('use_default', True) # 获取 use_default 参数，如果未提供则默认为 True
 
         # 扩展模型类型映射
         model_name_map = {
@@ -225,6 +226,7 @@ def train_model():
             X, y,
             model_name=model_type,
             test_size=test_size,
+            use_default=use_default, # 传递 use_default 参数
             **model_params
         )
 
