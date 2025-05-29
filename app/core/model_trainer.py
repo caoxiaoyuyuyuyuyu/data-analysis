@@ -289,7 +289,9 @@ class ModelTrainer:
             param_grid = {f'model__{k}': v for k, v in param_grid.items()}
 
         scoring = 'accuracy' if model_type == 'classification' else 'r2'
-        grid_search = GridSearchCV(pipeline, param_grid, cv=5, scoring=scoring, n_jobs=-1)
+        grid_search = GridSearchCV(estimator=pipeline, param_grid=param_grid,
+                                   cv=KFold(n_splits=10, shuffle=True, random_state=123),
+                                   scoring=scoring)
         grid_search.fit(X, y)
 
         return grid_search.best_params_

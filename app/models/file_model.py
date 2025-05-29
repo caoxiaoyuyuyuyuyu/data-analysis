@@ -11,6 +11,6 @@ class UserFile(db.Model):
     file_type = db.Column(db.String(50))
     upload_time = db.Column(db.DateTime(timezone=True), server_default=db.func.now())
     description = db.Column(db.Text)
-    is_processed = db.Column(db.Boolean, default=False)
+    # is_processed = db.Column(db.Boolean, default=False)
 
     user = db.relationship('User', backref='files')

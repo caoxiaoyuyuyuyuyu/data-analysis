@@ -16,7 +16,7 @@ class UserFileResponse:
     file_type: str
     upload_time: str
     description: str
-    is_processed: bool
+    # is_processed: bool
 
 file_bp = Blueprint('files', __name__, url_prefix='/files')
 
@@ -65,7 +65,7 @@ def upload_file():
             file_size=os.path.getsize(filepath),
             file_type=file_type,
             description=description,
-            is_processed=False
+            # is_processed=False
         )
         db.session.add(new_file)
         db.session.commit()
@@ -78,7 +78,7 @@ def upload_file():
             file_type=new_file.file_type,
             upload_time=new_file.upload_time.isoformat(),
             description=new_file.description,
-            is_processed=new_file.is_processed
+            # is_processed=new_file.is_processed
         ))
 
     except Exception as e:
@@ -103,7 +103,7 @@ def get_files():
             file_type=f.file_type,
             upload_time=f.upload_time.isoformat(),
             description=f.description,
-            is_processed=f.is_processed
+            # is_processed=f.is_processed
         ) for f in files])
     except Exception as e:
         current_app.logger.error(f"Get files error: {str(e)}")
@@ -131,7 +131,7 @@ def get_single_file(file_id):
             file_type=file.file_type,
             upload_time=file.upload_time.isoformat(),
             description=file.description,
-            is_processed=file.is_processed
+            # is_processed=file.is_processed
         ))
     except Exception as e:
         current_app.logger.error(f"Get file error: {str(e)}")
