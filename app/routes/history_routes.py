@@ -67,7 +67,6 @@ def delete_training_record(record_id):
 
 
 # 预测历史记录路由
-# 预测历史记录路由
 @history_bp.route('/prediction', methods=['GET'])
 @login_required
 def get_prediction_history():
@@ -81,7 +80,7 @@ def get_prediction_history():
             "id": record.id,
             "model_id": record.training_record_id,
             "model_name": record.training_record.model_name if record.training_record else "Unknown",
-            "model_type": record.model_type,
+            "model_config_id": record.model_type,
             "predict_time": record.predict_time.isoformat() if record.predict_time else None,
             "input_summary": f"{len(record.input_data)} features" if record.input_data else "No input data",
             "output_summary": f"{len(record.output_data)} predictions" if record.output_data else "No results",

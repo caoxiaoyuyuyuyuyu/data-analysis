@@ -15,10 +15,8 @@ class PredictRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id',  ondelete='CASCADE'), nullable=False)
     training_record_id = db.Column(db.Integer, db.ForeignKey('training_records.id', ondelete='CASCADE'))
-    model_type = db.Column(db.String(100), db.ForeignKey('model_configs.model_type'))
     input_file_id = db.Column(db.Integer, db.ForeignKey('user_files.id', ondelete='CASCADE'))
-    input_data = db.Column(JSONB)
-    output_data = db.Column(JSONB)
+    output_file_path = db.Column(db.String(100))
     predict_time = db.Column(db.DateTime(timezone=True), server_default=db.func.now())
     predict_duration = db.Column(db.Float, nullable=False)
     parameters = db.Column(JSONB)
@@ -28,14 +26,11 @@ class PredictRecord(db.Model):
     # 关系定义
     user = db.relationship('User', backref='predict_records')
     training_record = db.relationship('TrainingRecord', backref='predictions')
-    input_file = db.relationship('UserFile', backref='predictions')
-    model_config = db.relationship('ModelConfig', backref='predict_records')
 
-    def __init__(self, user_id, training_record_id=None, model_type=None,
+    def __init__(self, user_id, training_record_id=None,
                  input_file_id=None, input_data=None, parameters=None):
         self.user_id = user_id
         self.training_record_id = training_record_id
-        self.model_type = model_type
         self.input_file_id = input_file_id
         self.input_data = input_data
         self.parameters = parameters
@@ -54,7 +49,6 @@ class PredictRecord(db.Model):
             'id': self.id,
             'user_id': self.user_id,
             'training_record_id': self.training_record_id,
-            'model_type': self.model_type,
             'input_file_id': self.input_file_id,
             'input_data': self.input_data,
             'output_data': self.output_data,
@@ -70,7 +64,6 @@ class PredictRecord(db.Model):
         return cls(
             user_id=training_record.user_id,
             training_record_id=training_record.id,
-            model_type=training_record.model_type,
             input_file_id=input_file_id,
             input_data=input_data,
             parameters=parameters
