@@ -16,5 +16,17 @@ class PreprocessingRecord(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'original_file_id': self.original_file_id,
+            'processed_file_id': self.processed_file_id,
+            'user_id': self.user_id,
+            'rows_ori': self.rows_ori,
+            'rows_current': self.rows_current,
+            'columns_ori': self.columns_ori,
+            'columns_current': self.columns_current,
+            'created_at': self.created_at,
+        }
     def __repr__(self):
         return f'<PreprocessingRecord {self.id} for file {self.original_file_id}>'

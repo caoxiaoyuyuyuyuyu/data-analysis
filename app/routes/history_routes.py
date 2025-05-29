@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from app.models.training_record import TrainingRecord
 from app.models.predict_record import PredictRecord
-from app.models.preprocessing_history import PreprocessingHistory
+from app.models.preprocessing_record import PreprocessingRecord
 from app.utils.jwt_utils import login_required
 from app.extensions import db
 from datetime import datetime
@@ -137,24 +137,11 @@ def delete_prediction_record(record_id):
 def get_preprocessing_history():
     try:
         current_user = request.user
-        records = PreprocessingHistory.query.filter_by(
+        records = PreprocessingRecord.query.filter_by(
             user_id=current_user["user_id"]
-        ).order_by(PreprocessingHistory.processing_time.desc()).all()
+        ).order_by(PreprocessingRecord.created_at.desc()).all()
 
-        return jsonify([{
-            "id": record.id,
-            "file_id": record.file_id,
-            "original_filename": record.original_filename,
-            "processed_filename": record.processed_filename,
-            "processing_time": record.processing_time.isoformat(),
-            "operation_type": record.operation_type,
-            "parameters": record.parameters,
-            "duration": record.duration.total_seconds(),
-            "rows_before": record.rows_before,
-            "rows_after": record.rows_after,
-            "columns_before": record.columns_before,
-            "columns_after": record.columns_after
-        } for record in records])
+        return jsonify([record.to_dict() for record in records])
     except Exception as e:
         current_app.logger.error(f"Get preprocessing history error: {str(e)}")
         return jsonify({"error": "Failed to get preprocessing history"}), 500

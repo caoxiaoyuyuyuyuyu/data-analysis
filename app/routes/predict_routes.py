@@ -4,7 +4,7 @@ from app.extensions import db
 from app.models.model_config import ModelConfig
 from app.models.file_model import UserFile
 from app.models.training_record import TrainingRecord
-from app.models.predict_record import PredictionRecord
+from app.models.predict_record import PredictRecord
 from app.core.model_predictor import ModelPredictor
 import pandas as pd
 import json
@@ -57,22 +57,11 @@ def predict():
         return jsonify({"error": f"预测失败: {e}"}), 500
 
 
-    # 保存预测记录（可选：将 category 保存到 PredictionRecord）
-    prediction_record = PredictionRecord(
-        user_id=request.user.id,  # 假设已认证
-        model_id=model_config.id,
-        input_file_id=input_file_id,
-        output_data=json.dumps(y_pred.tolist()),
-        input_summary=f"输入数据共 {len(X)} 条",
-        output_summary=f"预测结果共 {len(y_pred)} 条",
-        model_name=training_record.model_name,
-    )
-    db.session.add(prediction_record)
-    db.session.commit()
+    # 保存预测记录（可选：将 category 保存到 PredictRecord）
 
     # 返回响应
     return jsonify({
-        "prediction": prediction_record.to_dict(),
+        # "prediction": prediction_record.to_dict(),
         "predict_data": y_pred.tolist(),
         # "category": category  # 可选：在响应中包含模型类别
     }), 200

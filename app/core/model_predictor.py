@@ -6,8 +6,8 @@ from sklearn.metrics import (
     mean_squared_error, r2_score, silhouette_score
 )
 
-
 class ModelPredictor:
+
     def __init__(self, model_path: str, model_type: str = None):
         """
         初始化预测器，加载模型并识别其类型
