@@ -3,6 +3,7 @@ from random import randint, uniform
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, BaggingClassifier, AdaBoostRegressor, \
     GradientBoostingRegressor, GradientBoostingClassifier, AdaBoostClassifier, BaggingRegressor
 from sklearn.model_selection import train_test_split, learning_curve, RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV, KFold
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     mean_squared_error, r2_score, silhouette_score, explained_variance_score, mean_absolute_error
@@ -23,8 +24,8 @@ class ModelTrainer:
     """增强版模型训练与评估类"""
 
     def __init__(self):
-        self.models = {
-            'regression': {
+        self.models = { # 预定义模型
+            'regression': { # 回归模型
                 'Linear Regression': LinearRegression(),
                 'Polynomial Regression': None,  # 特殊处理
                 'Ridge Regression': Ridge(),
@@ -34,16 +35,103 @@ class ModelTrainer:
                 'SVR': SVR(),
                 'KNN Regression': KNeighborsRegressor()
             },
-            'classification': {
+            'classification': { # 分类模型
                 'Logistic Regression': LogisticRegression(),
                 'Decision Tree': DecisionTreeClassifier(),
                 'Random Forest': RandomForestClassifier(),
                 'SVM': SVC(probability=True),
                 'KNN Classification': KNeighborsClassifier()
             },
-            'clustering': {
+            'clustering': { # 聚类模型
                 'K-Means': KMeans(),
                 'PCA': PCA()
+            }
+        }
+        self.model_param = {  # 定义参数
+            'regression': {  # 回归模型
+                'Linear Regression': {
+                    'fit_intercept': ['true', 'false'],
+                    'normalize': ['true', 'false']
+                },
+                'Polynomial Regression': {
+                    'degree': [1, 2, 3, 4, 5, 6],
+                    'interaction_only': ['true', 'false'],
+                    'include_bias': ['true', 'false']
+                },
+                'Ridge Regression': {
+                    'alpha': [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0],
+                    'fit_intercept': ['true', 'false'],
+                    'tol': [1e1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
+                    "solver": ["auto", "svd", "cholesky", "lsqr", "sparse_cg", "sag", "saga"]
+                },
+                'Lasso Regression': {
+                    'alpha': [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0],
+                    'fit_intercept': ['true', 'false'],
+                    'tol': [1e1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
+                    'warm_start': ['true', 'false'],
+                    'positive': ['true', 'false'],
+                    'selection': ['cyclic', 'random']
+                },
+                'Decision Tree': {
+                    "criterion": ["friedman_mse", "squared_error", "absolute_error"],
+                    "splitter": ["best", "random"],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+                },
+                'Random Forest': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "criterion": ["friedman_mse", "squared_error", "absolute_error"],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+                },
+                'SVR': {
+                    "C": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "kernel": ["linear", "poly", "rbf", "sigmoid"],
+                    "gamma": ["auto", "scale"]
+                },
+                'KNN Regression': {
+                    "n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21],
+                    "weights": ["uniform", "distance"],
+                    'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
+                }
+            },
+            'classification': {  # 分类模型
+                'Logistic Regression': {
+                    'penalty': ['l1', 'l2', 'elasticnet', 'none'],
+                    'tol': [1e1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
+                    'C': [0.1, 0.3, 0.5, 0.7, 0.9, 1.0, 2.0, 2.2, 3.0],
+                    'solver': ['liblinear', 'lbfgs', 'newton-cg', 'saga', 'sag'],
+                    'multi_class': ['auto', 'ovr', 'multinomial'],
+                    'class_weight': ['None', 'balanced'],
+                    'fit_intercept': ['true', 'false']
+                },
+                'Decision Tree': {
+                    "criterion": ["gini", "entropy"],
+                    "splitter": ["best", "random"],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+                },
+                'Random Forest': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "criterion": ["gini", "entropy"],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+                },
+                'SVM': {
+                    "C": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "kernel": ["linear", "poly", "rbf", "sigmoid"],
+                    "gamma": ["auto", "scale"]
+                },
+                'KNN Classification': {
+                    "n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21],
+                    "weights": ["uniform", "distance"],
+                    'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
+                }
+            },
+            'clustering': {  # 聚类模型
+                'K-Means': {
+                    'n_clusters': [2, 3, 4, 5, 6],
+                    'init': ['k-means++', 'random']
+                },
+                'PCA': {
+                    'n_components': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+                }
             }
         }
         self.best_model = None
@@ -75,7 +163,7 @@ class ModelTrainer:
         return Pipeline(steps)
 
     def train_model(self, X, y, model_name, test_size=0.2, random_state=42,
-                    normalize=False, **params):
+                    normalize=False, use_default=True, **params):
         """训练单个模型"""
         self.current_problem_type = self.determine_problem_type(y)
 
@@ -86,10 +174,14 @@ class ModelTrainer:
         pipeline = self.create_pipeline(model_name, normalize, params.get('degree', 2))
 
         # 设置参数
-        if model_name == 'Polynomial Regression':
-            pipeline.set_params(**{'poly__degree':params.get('degree', 2)})
-        else:
-            pipeline.set_params(**{f'model__{k}': v for k, v in params.items()})
+        if use_default: # 使用默认参数
+            best_params = self.get_best_params(self.current_problem_type, model_name, X, y)
+            pipeline.set_params(**best_params)
+        else: # 使用用户自定义的参数
+            if model_name == 'Polynomial Regression':
+                pipeline.set_params(**{'poly__degree':params.get('degree', 2)})
+            else:
+                pipeline.set_params(**{f'model__{k}': v for k, v in params.items()})
 
         # 划分数据集
         if self.current_problem_type in ['regression', 'classification']:
@@ -175,3 +267,31 @@ class ModelTrainer:
         scores = cross_val_score(model, X, y, cv=cv, scoring=scoring, n_jobs=-1)
 
         return scores
+
+    def get_best_params(self, model_type, model_name, X, y):
+        """交叉验证选择模型最优参数"""
+        param_grid = self.model_param[model_type][model_name]
+        model = self.models[model_type][model_name]
+
+        if model_name == 'Polynomial Regression':
+            steps = [
+                ('poly', PolynomialFeatures()),
+                ('linear', LinearRegression())
+            ]
+            pipeline = Pipeline(steps)
+            param_grid = {
+                'poly__degree': param_grid['degree'],
+                'poly__interaction_only': [True if x == 'true' else False for x in param_grid['interaction_only']],
+                'poly__include_bias': [True if x == 'true' else False for x in param_grid['include_bias']]
+            }
+        else:
+            pipeline = Pipeline([('model', model)])
+            param_grid = {f'model__{k}': v for k, v in param_grid.items()}
+
+        scoring = 'accuracy' if model_type == 'classification' else 'r2'
+        grid_search = GridSearchCV(estimator=pipeline, param_grid=param_grid,
+                                   cv=KFold(n_splits=10, shuffle=True, random_state=123),
+                                   scoring=scoring)
+        grid_search.fit(X, y)
+
+        return grid_search.best_params_
