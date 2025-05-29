@@ -1,10 +1,11 @@
 # preprocessing_routes.py
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, current_app
 from app.models.file_model import UserFile
-from app.models.preprocessing_history import PreprocessingHistory
+from app.models.preprocessing_record import PreprocessingRecord
 from app.models.preprocessing_step import PreprocessingStep
 from app.utils.data_processor import DataProcessor
 from app.utils.jwt_utils import login_required
@@ -82,10 +83,23 @@ def apply_preprocessing_step(file_id):
             return jsonify({"error": "Missing step data"}), 400
 
         step_data = data['step']
+        step_type = step_data['type']
+        params = step_data.get('params', {})
+        process_record_id = data['processed_record_id']
+
+        if process_record_id:
+            process_record = PreprocessingRecord.query.filter_by(id=process_record_id).first()
+            ori_file_id = process_record.original_file_id
+        else:
+            ori_file_id = file_id
+            process_record = PreprocessingRecord(
+                user_id=current_user["user_id"],
+                original_file_id=file_id
+            )
 
         # Verify file exists and belongs to user
         file_record = UserFile.query.filter_by(
-            id=file_id,
+            id=ori_file_id,
             user_id=current_user["user_id"]
         ).first()
 
@@ -96,16 +110,10 @@ def apply_preprocessing_step(file_id):
         df = load_dataframe(file_record)
         if not isinstance(df, pd.DataFrame):
             return df
-
         # Record stats before processing
         rows_before = df.shape[0]
         cols_before = df.shape[1]
-
-        # Process the step based on type
         processor = DataProcessor()
-        step_type = step_data['type']
-        params = step_data.get('params', {})
-
         try:
             if step_type == 'missing_values':
                 processed_df = processor.handle_missing_values(
@@ -136,55 +144,90 @@ def apply_preprocessing_step(file_id):
         cols_after = processed_df.shape[1]
 
         # Save the processed data back to file
-        original_filename = file_record.file_name
-        processed_filename = save_processed_data(file_record, processed_df)  # 修改此行
+        processed_file = save_processed_data(db, file_record, processed_df)  # 修改此行
+        processed_file_id = processed_file.id
+        #     rows_ori = db.Column(db.Integer, nullable=False)
+        #     rows_current = db.Column(db.Integer, nullable=False)
+        #     columns_ori = db.Column(db.Integer, nullable=False)
+        #     columns_current = db.Column(db.Integer, nullable=False)
+        process_record.rows_ori = rows_before
+        process_record.rows_current = rows_after
+        process_record.columns_ori = cols_before
+        process_record.columns_current = cols_after
+        process_record.processed_file_id = processed_file_id
+        db.session.add(process_record)
+        db.session.flush()  # 获取生成的ID
 
+        process_record_id = process_record.id
 
-        # Create preprocessing step record
+        steps = PreprocessingStep.query.filter_by(preprocessing_record_id=process_record_id).all()
+
         new_step = PreprocessingStep(
-            file_id=file_id,
+            preprocessing_record_id=process_record_id,
             step_name=step_type,
-            step_order=get_next_step_order(file_id),
-            parameters=params
+            step_order=len(steps) + 1,
+            step_type=step_type,
+            parameters=params,
+            duration= (datetime.utcnow() - start_time).total_seconds()
         )
         db.session.add(new_step)
 
-        # Create history record
-        history = PreprocessingHistory(
-            file_id=file_id,
-            user_id=current_user["user_id"],
-            original_filename=original_filename,
-            processed_filename=processed_filename,
-            operation_type=step_type,
-            parameters=params,
-            duration=datetime.utcnow() - start_time,
-            rows_before=rows_before,
-            rows_after=rows_after,
-            columns_before=cols_before,
-            columns_after=cols_after
-        )
-        db.session.add(history)
-
         db.session.commit()
-
         return jsonify({
-            "message": f"{step_type} applied successfully",
-            "history_id": history.id,
-            "stats": {
-                "rows_before": rows_before,
-                "rows_after": rows_after,
-                "columns_before": cols_before,
-                "columns_after": cols_after
-            }
-        })
+            "process_record_id": process_record_id,
+            "processed_file_id": processed_file_id,
 
+        })
     except Exception as e:
         current_app.logger.error(f"Preprocessing error: {str(e)}")
+        if processed_file:
+            os.remove(processed_file.file_path)
         db.session.rollback()
         return jsonify({
             "error": "Preprocessing failed",
             "details": str(e)
         }), 500
+
+    #
+
+    #     # Create preprocessing step record
+    #     new_step = PreprocessingStep(
+    #         file_id=file_id,
+    #         step_name=step_type,
+    #         step_order=get_next_step_order(file_id),
+    #         parameters=params
+    #     )
+    #     db.session.add(new_step)
+    #
+    #     # Create history record
+    #     history = PreprocessingHistory(
+    #         file_id=file_id,
+    #         user_id=current_user["user_id"],
+    #         original_filename=original_filename,
+    #         processed_filename=processed_filename,
+    #         operation_type=step_type,
+    #         parameters=params,
+    #         duration=datetime.utcnow() - start_time,
+    #         rows_before=rows_before,
+    #         rows_after=rows_after,
+    #         columns_before=cols_before,
+    #         columns_after=cols_after
+    #     )
+    #     db.session.add(history)
+    #
+    #     db.session.commit()
+    #
+    #     return jsonify({
+    #         "message": f"{step_type} applied successfully",
+    #         "history_id": history.id,
+    #         "stats": {
+    #             "rows_before": rows_before,
+    #             "rows_after": rows_after,
+    #             "columns_before": cols_before,
+    #             "columns_after": cols_after
+    #         }
+    #     })
+    #
 def get_next_step_order(file_id):
     """Get the next step order number for a file"""
     last_step = PreprocessingStep.query.filter_by(file_id=file_id) \
@@ -195,7 +238,7 @@ from pathlib import Path
 import os
 
 
-def save_processed_data(file_record, df):
+def save_processed_data(db, file_record, df):
     try:
         original_path = Path(file_record.file_path)
         processed_dir = original_path.parent / "processed"
@@ -213,14 +256,24 @@ def save_processed_data(file_record, df):
             df.to_excel(processed_path, index=False)
         elif file_record.file_type == 'json':
             df.to_json(processed_path, orient='records')
-        # ...其他格式
 
-        # 更新文件记录，指向新文件
-        file_record.file_path = str(processed_path)
-        file_record.file_name = processed_filename
+        new_file=UserFile(
+            user_id=file_record.user_id,
+            file_name=processed_filename,
+            file_path=str(processed_path),
+            file_size=os.path.getsize(processed_path),
+            file_type=file_record.file_type,
+            parent_id=file_record.id,
+        )
+        db.session.add(new_file)
+        db.session.flush()  # 获取生成的ID
 
-        return processed_filename  # 返回实际生成的文件名
+        current_app.logger.info(f"Saved processed data to {new_file.id}")
+
+        return new_file
 
     except Exception as e:
+        db.session.rollback()
+        os.remove(processed_path)
         current_app.logger.error(f"Failed to save processed data: {str(e)}")
         raise

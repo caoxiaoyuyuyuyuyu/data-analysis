@@ -13,10 +13,10 @@ class PredictRecord(db.Model):
     __tablename__ = 'predict_records'
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    training_record_id = db.Column(db.Integer, db.ForeignKey('training_records.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id',  ondelete='CASCADE'), nullable=False)
+    training_record_id = db.Column(db.Integer, db.ForeignKey('training_records.id', ondelete='CASCADE'))
     model_type = db.Column(db.String(100), db.ForeignKey('model_configs.model_type'))
-    input_file_id = db.Column(db.Integer, db.ForeignKey('user_files.id'))
+    input_file_id = db.Column(db.Integer, db.ForeignKey('user_files.id', ondelete='CASCADE'))
     input_data = db.Column(JSONB)
     output_data = db.Column(JSONB)
     predict_time = db.Column(db.DateTime(timezone=True), server_default=db.func.now())

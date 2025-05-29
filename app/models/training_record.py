@@ -23,8 +23,8 @@ class TrainingRecord(db.Model):
     model_file_size = db.Column(db.BigInteger, nullable=False)  # 新增字段
 
     # 关系定义
-    user = db.relationship('User', backref='training_records')
-    file = db.relationship('UserFile', backref='training_records')
+    user = db.relationship('User', back_populates='training_records')
+    file = db.relationship('UserFile', back_populates='training_records')
 
     # 添加 to_dict 方法
     def to_dict(self):

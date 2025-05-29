@@ -1,5 +1,6 @@
 from app.extensions import db
 
+
 class UserFile(db.Model):
     __tablename__ = 'user_files'
 
@@ -11,6 +12,11 @@ class UserFile(db.Model):
     file_type = db.Column(db.String(50))
     upload_time = db.Column(db.DateTime(timezone=True), server_default=db.func.now())
     description = db.Column(db.Text)
-    is_processed = db.Column(db.Boolean, default=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('user_files.id'), default=0)  # 新增parent_id
 
-    user = db.relationship('User', backref='files')
+    # 关系定义
+    user = db.relationship('User', back_populates='files')
+    training_records = db.relationship("TrainingRecord", back_populates="file", cascade="all, delete-orphan")
+
+    # 自引用关系
+    parent = db.relationship('UserFile', remote_side=[id], backref='children', post_update=True)

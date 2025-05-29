@@ -19,6 +19,9 @@ class User(db.Model, UserMixin):
     last_login = db.Column(db.DateTime(timezone=True))
     is_active = db.Column(db.Boolean, default=True)
 
+    files = db.relationship("UserFile", back_populates="user")
+    training_records = db.relationship("TrainingRecord", back_populates="user")
+
     def set_password(self, password: str):
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 

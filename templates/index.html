@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<script src="https://cdn.staticfile.net/jquery/1.10.2/jquery.min.js"></script>
+<script>
+    $(document).ready(function () {
+       $("button").click(function () {
+           $(this).hide();
+       })
+    })
+</script>
+<style>
+    .style1{
+        background-color: red;
+        color: white;
+        font-size: 20px;
+        text-align: center;
+        margin: 10px;
+        padding: 10px;
+        display: inline-block;
+        cursor: pointer;
+        transition: all 0.5s;
+        -webkit-transition: all 0.5s;
+        -moz-transition: all 0.5s;
+        -ms-transition: all 0.5s;
+        -o-transition: all 0.5s;
+        border-radius: 5px;
+    }
+</style>
+<body>
+<button>点击消失</button>
+<button>点击消失</button>
+<button class="style1">点击消失</button>
+
+</body>
+</html>

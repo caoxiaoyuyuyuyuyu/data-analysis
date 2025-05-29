@@ -19,7 +19,7 @@ class UserFileResponse:
     file_type: str
     upload_time: str
     description: str
-    is_processed: bool
+    parent_id: bool
 
 file_bp = Blueprint('files', __name__, url_prefix='/files')
 
@@ -59,6 +59,7 @@ def upload_file():
         upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_user["user_id"]))
         os.makedirs(upload_dir, exist_ok=True)
         filepath = os.path.join(upload_dir, filename)
+        current_app.logger.info(f"File uploaded: {filepath}")
         file.save(filepath)
 
         new_file = UserFile(
@@ -67,8 +68,7 @@ def upload_file():
             file_path=filepath,
             file_size=os.path.getsize(filepath),
             file_type=file_type,
-            description=description,
-            is_processed=False
+            description=description
         )
         db.session.add(new_file)
         db.session.commit()
@@ -81,7 +81,7 @@ def upload_file():
             file_type=new_file.file_type,
             upload_time=new_file.upload_time.isoformat(),
             description=new_file.description,
-            is_processed=new_file.is_processed
+            parent_id=new_file.parent_id
         ))
 
     except Exception as e:
@@ -106,7 +106,7 @@ def get_files():
             file_type=f.file_type,
             upload_time=f.upload_time.isoformat(),
             description=f.description,
-            is_processed=f.is_processed
+            parent_id=f.parent_id
         ) for f in files])
     except Exception as e:
         current_app.logger.error(f"Get files error: {str(e)}")
@@ -134,7 +134,7 @@ def get_single_file(file_id):
             file_type=file.file_type,
             upload_time=file.upload_time.isoformat(),
             description=file.description,
-            is_processed=file.is_processed
+            parent_id=file.parent_id
         ))
     except Exception as e:
         current_app.logger.error(f"Get file error: {str(e)}")
@@ -149,6 +149,10 @@ def delete_file(file_id):
             user_id=current_user["user_id"],
             id=file_id
         ).first()
+
+        file_path = file.file_path
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
         if not file:
             return jsonify({"error": "File not found"}), 404

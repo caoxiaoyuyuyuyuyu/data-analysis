@@ -28,7 +28,13 @@ class Config:
     DEBUG = os.getenv('FLASK_DEBUG', 'False') == 'True'
 
     # 文件上传配置
-    UPLOAD_FOLDER = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'uploads')
+    from pathlib import Path
+
+    # 获取当前文件所在目录
+    basedir = Path(__file__).resolve().parent
+
+    UPLOAD_FOLDER = basedir.parent / 'uploads'
+
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
     ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls', 'json'}
 
