@@ -3,5 +3,9 @@
   <component name="Black">
     <option name="sdkName" value="AnalysisDouyin" />
   </component>
+<<<<<<< HEAD
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (DataAnalisy)" project-jdk-type="Python SDK" />
+=======
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (DataAnalysisPj)" project-jdk-type="Python SDK" />
+>>>>>>> zsh
 </project>

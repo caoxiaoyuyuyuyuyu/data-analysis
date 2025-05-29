@@ -8,7 +8,11 @@
       <excludeFolder url="file://$MODULE_DIR$/.idea/dataSources" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
     </content>
+<<<<<<< HEAD
     <orderEntry type="jdk" jdkName="Python 3.10 (DataAnalisy)" jdkType="Python SDK" />
+=======
+    <orderEntry type="jdk" jdkName="Python 3.10 (DataAnalysisPj)" jdkType="Python SDK" />
+>>>>>>> zsh
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="TemplatesService">

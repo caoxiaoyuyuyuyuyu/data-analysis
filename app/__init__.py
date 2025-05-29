@@ -34,5 +34,6 @@ def create_app(config_class=Config):
     app.register_blueprint(history_bp)
     app.register_blueprint(predict_bp)
     app.register_blueprint(model_bp)
+    app.register_blueprint(predict_bp)
 
     return app
