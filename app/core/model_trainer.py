@@ -24,8 +24,8 @@ class ModelTrainer:
     """增强版模型训练与评估类"""
 
     def __init__(self):
-        self.models = { # 预定义模型
-            'regression': { # 回归模型
+        self.models = {  # 预定义模型
+            'regression': {  # 回归模型
                 'Linear Regression': LinearRegression(),
                 'Polynomial Regression': None,  # 特殊处理
                 'Ridge Regression': Ridge(),
@@ -33,16 +33,22 @@ class ModelTrainer:
                 'Decision Tree': DecisionTreeRegressor(),
                 'Random Forest': RandomForestRegressor(),
                 'SVR': SVR(),
-                'KNN Regression': KNeighborsRegressor()
+                'KNN Regression': KNeighborsRegressor(),
+                'Bagging Regression': BaggingRegressor(),
+                'AdaBoost Regression': AdaBoostRegressor(),
+                'Gradient Boosting': GradientBoostingRegressor()
             },
-            'classification': { # 分类模型
+            'classification': {  # 分类模型
                 'Logistic Regression': LogisticRegression(),
                 'Decision Tree': DecisionTreeClassifier(),
                 'Random Forest': RandomForestClassifier(),
                 'SVM': SVC(probability=True),
-                'KNN Classification': KNeighborsClassifier()
+                'KNN Classification': KNeighborsClassifier(),
+                'Bagging Classification': BaggingClassifier(),
+                'AdaBoost Classification': AdaBoostClassifier(),
+                'Gradient Boosting': GradientBoostingClassifier()
             },
-            'clustering': { # 聚类模型
+            'clustering': {  # 聚类模型
                 'K-Means': KMeans(),
                 'PCA': PCA()
             }
@@ -91,6 +97,27 @@ class ModelTrainer:
                     "n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21],
                     "weights": ["uniform", "distance"],
                     'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
+                },
+                'Bagging Regression': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "max_samples": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "bootstrap": ['true', 'false'],
+                    "bootstrap_features": ['true', 'false']
+                },
+                'AdaBoost Regression': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
+                    "loss": ["linear", "square", "exponential"]
+                },
+                'Gradient Boosting': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
+                    "max_depth": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    "min_samples_split": [2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    "min_samples_leaf": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "loss": ["ls", "lad", "huber", "quantile"]
                 }
             },
             'classification': {  # 分类模型
@@ -122,6 +149,27 @@ class ModelTrainer:
                     "n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21],
                     "weights": ["uniform", "distance"],
                     'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
+                },
+                'Bagging Classification': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "max_samples": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "bootstrap": ['true', 'false'],
+                    "bootstrap_features": ['true', 'false']
+                },
+                'AdaBoost Classification': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
+                    "algorithm": ["SAMME", "SAMME.R"]
+                },
+                'Gradient Boosting': {
+                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
+                    "max_depth": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    "min_samples_split": [2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    "min_samples_leaf": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+                    "loss": ["deviance", "exponential"]
                 }
             },
             'clustering': {  # 聚类模型
@@ -174,12 +222,12 @@ class ModelTrainer:
         pipeline = self.create_pipeline(model_name, normalize, params.get('degree', 2))
 
         # 设置参数
-        if use_default: # 使用默认参数
+        if use_default:  # 使用默认参数
             best_params = self.get_best_params(self.current_problem_type, model_name, X, y)
             pipeline.set_params(**best_params)
-        else: # 使用用户自定义的参数
+        else:  # 使用用户自定义的参数
             if model_name == 'Polynomial Regression':
-                pipeline.set_params(**{'poly__degree':params.get('degree', 2)})
+                pipeline.set_params(**{'poly__degree': params.get('degree', 2)})
             else:
                 pipeline.set_params(**{f'model__{k}': v for k, v in params.items()})
 
@@ -236,12 +284,7 @@ class ModelTrainer:
         train_sizes, train_scores, test_scores = learning_curve(
             model, X, y, cv=cv, n_jobs=-1,
             train_sizes=np.linspace(0.1, 1.0, 5))
-        #
-        # return {
-        #     'train_sizes': train_sizes,
-        #     'train_scores': train_scores.mean(axis=1),
-        #     'test_scores': test_scores.mean(axis=1)
-        # }
+
         return {
             'train_sizes': train_sizes.tolist(),  # 转换为列表
             'train_scores': train_scores.mean(axis=1).tolist(),  # 转换为列表

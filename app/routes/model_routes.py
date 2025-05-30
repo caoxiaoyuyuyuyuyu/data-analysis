@@ -201,6 +201,7 @@ def train_model():
 
         # 扩展模型类型映射
         model_name_map = {
+            # 回归模型
             'Linear_Regression': 'Linear Regression',
             'Ridge_Regression': 'Ridge Regression',
             'Lasso_Regression': 'Lasso Regression',
@@ -209,11 +210,21 @@ def train_model():
             'SVM_Regressor': 'SVR',
             'KNN_Regressor': 'KNN Regression',
             'Polynomial_Regression': 'Polynomial Regression',
+            'Bagging_Regressor': 'Bagging Regression',
+            'AdaBoost_Regressor': 'AdaBoost Regression',
+            'Gradient_Boosting_Regressor': 'Gradient Boosting',
+
+            # 分类模型
             'Logistic_Regression': 'Logistic Regression',
             'KNN_Classifier': 'KNN Classification',
             'SVM_Classifier': 'SVM',
             'Random_Forest_Classifier': 'Random Forest',
             'Decision_Tree_Classifier': 'Decision Tree',
+            'Bagging_Classifier': 'Bagging Classification',
+            'AdaBoost_Classifier': 'AdaBoost Classification',
+            'Gradient_Boosting_Classifier': 'Gradient Boosting',
+
+            # 聚类/降维模型
             'K_Means': 'K-Means',
             'PCA': 'PCA'
         }

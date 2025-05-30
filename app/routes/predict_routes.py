@@ -1,3 +1,5 @@
+from datetime import datetime
+from pathlib import Path
 
 from flask import Blueprint, request, jsonify, current_app
 
@@ -6,7 +8,7 @@ from app.extensions import db
 from app.models.model_config import ModelConfig
 from app.models.file_model import UserFile
 from app.models.training_record import TrainingRecord
-from app.models.predict_record import PredictRecord
+from app.models.predict_record import PredictRecord, PredictStatus
 from app.core.model_predictor import ModelPredictor
 import pandas as pd
 import json
@@ -92,6 +94,7 @@ def predict():
 
     # 执行预测
     try:
+        start_time  = datetime.utcnow()
         y_pred = predictor.predict(X)
     except Exception as e:
         return jsonify({"error": f"预测失败: {e}"}), 500
@@ -99,11 +102,56 @@ def predict():
     X['prediction'] = y_pred  # 添加预测列为新的一列
     result_data = X.to_dict(orient='records')  # 转换为字典列表用于返回
 
-    # 保存预测记录（可选：将 category 保存到 PredictRecord）
+    result_file_name = f"{user_file.file_name.split('.')[0]}_prediction" + str(int(datetime.utcnow().timestamp())) + "." + user_file.file_type
+    try:
+        result_file_path = save_result_file(X, user_file.user_id, result_file_name, user_file.file_type)
+    except Exception as e:
+        return jsonify({"error": f"保存预测结果文件失败: {e}"}), 500
 
-    # 返回响应
-    return jsonify({
-        # "prediction": prediction_record.to_dict(),
-        "predict_data": result_data,
-        # "category": category  # 可选：在响应中包含模型类别
-    }), 200
+    try:
+        prediction_record = PredictRecord(
+            user_id=training_record.user_id,
+            training_record_id=training_record_id,
+            input_file_id=input_file_id,
+            output_file_path=result_file_path,
+            predict_time = datetime.utcnow(),
+            predict_duration = (datetime.utcnow() - start_time).total_seconds(),
+            status='completed',
+            error_message=None
+        )
+        db.session.add(prediction_record)
+        db.session.commit()
+
+        # 返回响应
+        return jsonify({
+            "prediction_record": prediction_record.to_dict(),
+            "predict_data": result_data,
+            # "category": category  # 可选：在响应中包含模型类别
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"保存预测结果文件失败: {e}"}), 500
+
+import json
+def save_result_file(data, user_id, file_name, file_type):
+    save_dir = Path(current_app.config['UPLOAD_FOLDER'], str(user_id), "predict")
+    save_dir.mkdir(parents=True, exist_ok=True)
+    file_path = save_dir / file_name
+
+    try:
+        if file_type == 'csv':
+            data.to_csv(file_path, index=False)
+        elif file_type == 'xlsx':
+            data.to_excel(file_path, index=False)
+        elif file_type == 'txt':
+            with open(file_path, 'w', encoding='utf-8') as f:
+                for index, row in data.iterrows():
+                    f.write(json.dumps(row.to_dict(), ensure_ascii=False) + '\n')
+        else:
+            raise ValueError(f"不支持的文件类型: {file_type}")
+    except Exception as e:
+        current_app.logger.error(f"保存预测结果文件失败: {str(e)}")
+        raise  # 继续抛出异常，由上层处理
+
+    return str(file_path)
+

@@ -78,17 +78,7 @@ def get_prediction_history():
             user_id=current_user["user_id"]
         ).order_by(PredictRecord.predict_time.desc()).all()
 
-        return jsonify([{
-            "id": record.id,
-            "model_id": record.training_record_id,
-            "model_name": record.training_record.model_name if record.training_record else "Unknown",
-            "model_config_id": record.model_type,
-            "predict_time": record.predict_time.isoformat() if record.predict_time else None,
-            "input_summary": f"{len(record.input_data)} features" if record.input_data else "No input data",
-            "output_summary": f"{len(record.output_data)} predictions" if record.output_data else "No results",
-            "status": record.status,
-            "duration": record.predict_duration
-        } for record in records])
+        return jsonify([record.to_dict() for record in records])
     except Exception as e:
         current_app.logger.error(f"Get prediction history error: {str(e)}")
         return jsonify({"error": "Failed to get prediction history"}), 500
