@@ -3,7 +3,7 @@ import os
 
 import joblib
 import pandas as pd
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, send_file
 from sqlalchemy import text
 
 from app.models.file_model import UserFile
@@ -279,3 +279,21 @@ def save_model_to_file(model, model_name,user_id):
     joblib.dump(model, model_path)
 
     return model_path
+
+@model_bp.route('/download', methods=['POST'])
+@login_required
+def download_file():
+    try:
+        current_user = request.user
+        record_id = request.get_json()['record_id']
+        record = TrainingRecord.query.filter_by(
+            user_id=current_user["user_id"],
+            id=record_id
+        ).first()
+        model_path = record.model_file_path
+        file_name = os.path.basename(model_path)
+
+        return send_file(model_path, as_attachment=True, download_name=file_name)
+    except Exception as e:
+        current_app.logger.error(f"Download file error: {str(e)}")
+        return jsonify({"error": "Failed to download file"}), 500
