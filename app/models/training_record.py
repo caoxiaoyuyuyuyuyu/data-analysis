@@ -32,7 +32,7 @@ class TrainingRecord(db.Model):
             'user_id': self.user_id,
             'file_id': self.file_id,
             'model_name': self.model_name,
-            'model_id': self.model_id,
+            'model_config_id': self.model_config_id,
             'test_size': self.test_size,
             'target_column': self.target_column,
             'duration': self.duration,

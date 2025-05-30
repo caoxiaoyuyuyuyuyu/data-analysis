@@ -25,7 +25,8 @@ def get_model_configs():
         result = []
         for config in configs:
             config_data = {
-                'model_type': config.model_type,
+                'model_id': config.id,
+                'model_name': config.model_type,
                 'display_name': config.display_name,
                 'category': config.category,
                 'description': config.description,
@@ -190,7 +191,10 @@ def train_model():
         trainer = ModelTrainer()
 
         # 获取模型配置
-        model_type = data['model_config']['model_type']
+        model_id = data['model_config']['model_id']
+        model_config=ModelConfig.query.get(model_id)
+        current_app.logger.info(model_config)
+        model_type = model_config.model_type
         model_params = data['model_config'].get('parameters', {})
         test_size = data.get('test_size', 0.2)
         use_default = data.get('use_default', True) # 获取 use_default 参数，如果未提供则默认为 True
@@ -241,9 +245,8 @@ def train_model():
         new_model = TrainingRecord(
             user_id=current_user['user_id'],
             file_id=data['file_id'],
-            file_name=file.file_name,
-            model_name=data['model_name'],
-            model_type=data['model_config']['model_type'],
+            model_config_id=model_id,
+            model_name=data.get('model_name',  model_name_save),
             target_column=data['target_column'],
             test_size=test_size,
             duration=duration,

@@ -1,5 +1,7 @@
 # history_routes.py
 from flask import Blueprint, jsonify, request, current_app
+
+from app.models.preprocessing_step import PreprocessingStep
 from app.models.training_record import TrainingRecord
 from app.models.predict_record import PredictRecord
 from app.models.preprocessing_record import PreprocessingRecord
@@ -132,6 +134,8 @@ def delete_prediction_record(record_id):
         return jsonify({"error": "Failed to delete prediction record"}), 500
 
 # 预处理历史记录路由
+from app.models.file_model import UserFile  # 假设存在这个模型
+
 @history_bp.route('/preprocessing', methods=['GET'])
 @login_required
 def get_preprocessing_history():
@@ -141,7 +145,41 @@ def get_preprocessing_history():
             user_id=current_user["user_id"]
         ).order_by(PreprocessingRecord.created_at.desc()).all()
 
-        return jsonify([record.to_dict() for record in records])
+        result = []
+        for record in records:
+            # 查询原始文件和处理后文件的详情
+            original_file = UserFile.query.get(record.original_file_id)
+            processed_file = UserFile.query.get(record.processed_file_id)
+            processing_steps = PreprocessingStep.query.filter_by(preprocessing_record_id=record.id).all()
+
+            result.append({
+                'id': record.id,
+                'user_id': record.user_id,
+                'created_at': record.created_at,
+
+                # 原始文件信息
+                'original_file': {
+                    'id': original_file.id,
+                    'file_name': original_file.file_name,
+                    'file_size': original_file.file_size,
+                    'file_path': original_file.file_path,
+                    'upload_time': original_file.upload_time.isoformat() if original_file else None
+                } if original_file else None,
+
+                # 处理后文件信息
+                'processed_file': {
+                    'id': processed_file.id,
+                    'file_name': processed_file.file_name,
+                    'file_size': processed_file.file_size,
+                    'file_path': processed_file.file_path,
+                    'upload_time': processed_file.upload_time.isoformat() if processed_file else None
+                } if processed_file else None,
+
+                # 其他字段可根据需要添加
+                "processing_steps": [step.to_dict() for step in processing_steps]
+            })
+
+        return jsonify(result)
     except Exception as e:
         current_app.logger.error(f"Get preprocessing history error: {str(e)}")
         return jsonify({"error": "Failed to get preprocessing history"}), 500
