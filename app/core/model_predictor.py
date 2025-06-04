@@ -1,5 +1,7 @@
 import joblib
 import os
+
+import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
@@ -58,3 +60,57 @@ class ModelPredictor:
             return self.model.predict_proba(X)
         else:
             raise NotImplementedError("该模型不支持 predict_proba 方法")
+
+    def generate_visualization_data(self, X, y_pred, target_column, model_category):
+        """
+        生成用于前端可视化的数据
+        """
+        viz_data = {
+            "model_type": model_category,
+            "basic_metrics": None,
+            "feature_importance": None,
+            "distribution": None,
+            "cluster_visualization": None
+        }
+
+        try:
+            # 1. 基本指标
+            if model_category == 'classification' and hasattr(self.model, 'classes_'):
+                viz_data['class_labels'] = self.model.classes_.tolist()
+
+            # 2. 特征重要性
+            if hasattr(self.model, 'feature_importances_'):
+                viz_data['feature_importance'] = {
+                    'features': X.columns.tolist(),
+                    'importance': self.model.feature_importances_.tolist()
+                }
+            elif hasattr(self.model, 'coef_'):
+                viz_data['feature_importance'] = {
+                    'features': X.columns.tolist(),
+                    'importance': self.model.coef_.tolist()
+                }
+
+            # 3. 预测结果分布
+            if model_category in ['classification', 'regression']:
+                viz_data['distribution'] = {
+                    'predicted': pd.Series(y_pred).value_counts().to_dict()
+                }
+                if target_column in X.columns:  # 如果有真实值可以对比
+                    viz_data['distribution']['actual'] = X[target_column].value_counts().to_dict()
+
+            # 4. 聚类可视化
+            if model_category == 'clustering':
+                # 使用PCA或TSNE降维
+                from sklearn.decomposition import PCA
+                pca = PCA(n_components=2)
+                reduced_data = pca.fit_transform(X)
+                viz_data['cluster_visualization'] = {
+                    'x': reduced_data[:, 0].tolist(),
+                    'y': reduced_data[:, 1].tolist(),
+                    'labels': y_pred.tolist(),
+                    'cluster_centers': getattr(self.model, 'cluster_centers_', None)
+                }
+
+        except Exception as e:
+            raise
+        return viz_data

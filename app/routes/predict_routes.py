@@ -26,8 +26,17 @@ def check_file():
     if not training_record:
         return jsonify({"error": "模型不存在"}), 404
 
+    train_file = UserFile.query.get(training_record.file_id)
+    if not train_file:
+      return jsonify({"error": "文件不存在"}), 404
+
+    train_df = dataloader.load_file(train_file.file_path)
+
+    # expected_columns = train_df.columns.tolist() - [training_record.target_column]
+    expected_columns = list(set(train_df.columns.tolist()) - {training_record.target_column})
+
+    current_app.logger.info(f"训练文件列：{expected_columns}")
     # expected_columns = json.loads(training_record.feature_columns)  # 假设存储为JSON字符串
-    expected_columns = ["V1"]
 
     # 获取文件的列
     user_file = UserFile.query.get(file_id)
@@ -36,7 +45,7 @@ def check_file():
 
     try:
         df = dataloader.load_file(user_file.file_path)
-        # df = pd.read_csv(user_file.file_path, nrows=0)  # 只读取列名
+
         actual_columns = df.columns.tolist()
     except Exception as e:
         return jsonify({"error": f"读取文件失败: {e}"}), 500
@@ -96,6 +105,13 @@ def predict():
     try:
         start_time  = datetime.utcnow()
         y_pred = predictor.predict(X)
+
+        # 新增可视化数据生成
+        visualization_data = predictor.generate_visualization_data(
+            X, y_pred,
+            training_record.target_column,
+            model_config.category
+        )
     except Exception as e:
         return jsonify({"error": f"预测失败: {e}"}), 500
 
@@ -126,7 +142,7 @@ def predict():
         return jsonify({
             "prediction_record": prediction_record.to_dict(),
             "predict_data": result_data,
-            # "category": category  # 可选：在响应中包含模型类别
+            "visualization": visualization_data  # 新增可视化数据
         }), 200
     except Exception as e:
         db.session.rollback()
