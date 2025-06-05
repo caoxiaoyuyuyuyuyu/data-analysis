@@ -2,6 +2,7 @@ import joblib
 import os
 
 import pandas as pd
+from flask import current_app
 from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
@@ -61,10 +62,8 @@ class ModelPredictor:
         else:
             raise NotImplementedError("该模型不支持 predict_proba 方法")
 
-    def generate_visualization_data(self, X, y_pred, target_column, model_category):
-        """
-        生成用于前端可视化的数据
-        """
+    def generate_visualization_data(self, X, y_pred, y_true=None, target_column=None, model_category=None):
+        """生成用于前端可视化的数据"""
         viz_data = {
             "model_type": model_category,
             "basic_metrics": None,
@@ -74,21 +73,82 @@ class ModelPredictor:
         }
 
         try:
-            # 1. 基本指标
-            if model_category == 'classification' and hasattr(self.model, 'classes_'):
-                viz_data['class_labels'] = self.model.classes_.tolist()
+            # 1. 基本指标（需要真实标签）
+            if y_true is not None:
+                if model_category == 'classification':
+                    viz_data['class_labels'] = getattr(self.model, 'classes_', sorted(set(y_true))).tolist()
+                    viz_data['basic_metrics'] = {
+                        'accuracy': accuracy_score(y_true, y_pred),
+                        'precision': precision_score(y_true, y_pred, average='weighted'),
+                        'recall': recall_score(y_true, y_pred, average='weighted'),
+                        'f1': f1_score(y_true, y_pred, average='weighted')
+                    }
+                elif model_category == 'regression':
+                    viz_data['basic_metrics'] = {
+                        'mse': mean_squared_error(y_true, y_pred),
+                        'r2': r2_score(y_true, y_pred)
+                    }
 
             # 2. 特征重要性
-            if hasattr(self.model, 'feature_importances_'):
-                viz_data['feature_importance'] = {
-                    'features': X.columns.tolist(),
-                    'importance': self.model.feature_importances_.tolist()
-                }
-            elif hasattr(self.model, 'coef_'):
-                viz_data['feature_importance'] = {
-                    'features': X.columns.tolist(),
-                    'importance': self.model.coef_.tolist()
-                }
+            importance = None
+            feature_names = None
+
+            # 处理Pipeline类型模型
+            actual_model = self.model
+            if hasattr(self.model, 'steps') and isinstance(self.model.steps, list):
+                # 获取Pipeline中的最终估计器
+                actual_model = self.model.steps[-1][1]
+
+            # 获取特征名称
+            if isinstance(X, pd.DataFrame):
+                feature_names = X.columns.tolist()
+            elif hasattr(X, 'columns'):
+                feature_names = X.columns.tolist()
+            elif hasattr(X, 'shape'):
+                feature_names = [f"feature_{i}" for i in range(X.shape[1])]
+            else:
+                feature_names = []
+
+            # 检查特征重要性属性
+            if hasattr(actual_model, 'feature_importances_'):
+                importance = actual_model.feature_importances_
+                print(f"使用 feature_importances_ 属性，形状: {importance.shape}")
+
+            # 检查系数属性
+            elif hasattr(actual_model, 'coef_'):
+                coef = actual_model.coef_
+
+                # 处理不同维度的系数
+                if coef.ndim == 1:
+                    importance = coef
+                elif coef.ndim == 2:
+                    # 多分类模型 - 取绝对值平均值
+                    importance = np.abs(coef).mean(axis=0)
+                    print(f"处理二维 coef_，平均后形状: {importance.shape}")
+                else:
+                    print(f"不支持的 coef_ 维度: {coef.ndim}")
+
+            # 处理随机森林等集成方法
+            elif hasattr(actual_model, 'estimators_'):
+                # 尝试从第一个估计器获取特征重要性
+                if len(actual_model.estimators_) > 0:
+                    first_estimator = actual_model.estimators_[0]
+                    if hasattr(first_estimator, 'feature_importances_'):
+                        importance = first_estimator.feature_importances_
+                        print("使用集成模型中第一个估计器的 feature_importances_")
+
+            # 处理成功获取到重要性值的情况
+            if importance is not None and len(importance) > 0:
+                # 确保重要性数组长度匹配特征数量
+                if len(importance) == len(feature_names):
+                    viz_data['feature_importance'] = {
+                        'features': feature_names,
+                        'importance': importance.tolist()
+                    }
+                else:
+                    print(f"特征数量 ({len(feature_names)}) 与重要性数组长度 ({len(importance)}) 不匹配")
+            else:
+                print("未找到特征重要性信息")
 
             # 3. 预测结果分布
             if model_category in ['classification', 'regression']:

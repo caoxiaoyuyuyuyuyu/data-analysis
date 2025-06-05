@@ -35,7 +35,7 @@ def check_file():
     # expected_columns = train_df.columns.tolist() - [training_record.target_column]
     expected_columns = list(set(train_df.columns.tolist()) - {training_record.target_column})
 
-    current_app.logger.info(f"训练文件列：{expected_columns}")
+    # current_app.logger.info(f"训练文件列：{expected_columns}")
     # expected_columns = json.loads(training_record.feature_columns)  # 假设存储为JSON字符串
 
     # 获取文件的列
@@ -49,11 +49,11 @@ def check_file():
         actual_columns = df.columns.tolist()
     except Exception as e:
         return jsonify({"error": f"读取文件失败: {e}"}), 500
-    current_app.logger.info(f"实际列：{actual_columns}")
+    # current_app.logger.info(f"实际列：{actual_columns}")
     # 比较列
     missing = set(expected_columns) - set(actual_columns)
     extra = set(actual_columns) - set(expected_columns)
-    current_app.logger.info(f"列匹配结果：{missing} {extra}")
+    # current_app.logger.info(f"列匹配结果：{missing} {extra}")
     return jsonify({
         "valid": len(missing) == 0,
         "missing_columns": list(missing),
@@ -95,6 +95,10 @@ def predict():
     except Exception as e:
         return jsonify({"error": f"读取文件失败: {e}"}), 500
 
+    y_true = None
+    if training_record.target_column in X.columns:
+        y_true  = X[training_record.target_column]
+        X.drop(columns=[training_record.target_column], inplace=True)
     # 加载模型
     try:
         predictor = ModelPredictor(model_path, model_type=category)
@@ -109,6 +113,7 @@ def predict():
         # 新增可视化数据生成
         visualization_data = predictor.generate_visualization_data(
             X, y_pred,
+            y_true,
             training_record.target_column,
             model_config.category
         )
@@ -130,6 +135,7 @@ def predict():
             training_record_id=training_record_id,
             input_file_id=input_file_id,
             output_file_path=result_file_path,
+            parameters=visualization_data,
             predict_time = datetime.utcnow(),
             predict_duration = (datetime.utcnow() - start_time).total_seconds(),
             status='completed',
