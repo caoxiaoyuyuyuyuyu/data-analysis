@@ -17,6 +17,15 @@ class UserFile(db.Model):
     # 关系定义
     user = db.relationship('User', back_populates='files')
     training_records = db.relationship("TrainingRecord", back_populates="file", cascade="all, delete-orphan")
-
+    stacking_training_records = db.relationship(
+        "StackingTrainingRecord",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
+    stacking_prediction_records = db.relationship(
+        "StackingPredictionRecord",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
     # 自引用关系
     parent = db.relationship('UserFile', remote_side=[id], backref='children', post_update=True)
