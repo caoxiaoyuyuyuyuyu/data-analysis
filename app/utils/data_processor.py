@@ -250,4 +250,4 @@ class DataProcessor:
         valid_columns = [col for col in columns if col in df.columns]
         if not valid_columns:
             raise ValueError("No valid columns provided for feature selection")
-        return df[valid_columns]
+        return df[valid_columns]#

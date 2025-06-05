@@ -285,4 +285,4 @@ def save_processed_data(db, file_record, df):
         if 'processed_path' in locals() and os.path.exists(processed_path):
             os.remove(processed_path)
         current_app.logger.error(f"Failed to save processed data: {str(e)}")
-        raise
+        raise#
