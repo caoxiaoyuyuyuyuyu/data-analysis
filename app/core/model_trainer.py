@@ -18,173 +18,101 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 import numpy as np
 import pandas as pd
+from app.models.model_config import ModelParameter, ModelConfig
+from app.extensions import db
 
 
 class ModelTrainer:
     """增强版模型训练与评估类"""
 
     def __init__(self):
-        self.models = {  # 预定义模型
-            'regression': {  # 回归模型
-                'Linear Regression': LinearRegression(),
-                'Polynomial Regression': None,  # 特殊处理
-                'Ridge Regression': Ridge(),
-                'Lasso Regression': Lasso(),
-                'Decision Tree': DecisionTreeRegressor(),
-                'Random Forest': RandomForestRegressor(),
+        self.models = {  # 统一为下划线命名法，与数据库和前端一致
+            'regression': {
+                'Linear_Regression': LinearRegression(),
+                'Polynomial_Regression': None,  # 特殊处理
+                'Ridge_Regression': Ridge(),
+                'Lasso_Regression': Lasso(),
+                'Decision_Tree_Regressor': DecisionTreeRegressor(),
+                'Random_Forest_Regressor': RandomForestRegressor(),  # 修正名称
                 'SVR': SVR(),
-                'KNN Regression': KNeighborsRegressor(),
-                'Bagging Regression': BaggingRegressor(),
-                'AdaBoost Regression': AdaBoostRegressor(),
-                'Gradient Boosting': GradientBoostingRegressor()
+                'KNN_Regressor': KNeighborsRegressor()
             },
-            'classification': {  # 分类模型
-                'Logistic Regression': LogisticRegression(),
-                'Decision Tree': DecisionTreeClassifier(),
-                'Random Forest': RandomForestClassifier(),
-                'SVM': SVC(probability=True),
-                'KNN Classification': KNeighborsClassifier(),
-                'Bagging Classification': BaggingClassifier(),
-                'AdaBoost Classification': AdaBoostClassifier(),
-                'Gradient Boosting': GradientBoostingClassifier()
+            'classification': {
+                'Logistic_Regression': LogisticRegression(),
+                'Decision_Tree_Classifier': DecisionTreeClassifier(),
+                'Random_Forest_Classifier': RandomForestClassifier(),  # 修正名称
+                'SVM_Classifier': SVC(probability=True),
+                'KNN_Classifier': KNeighborsClassifier()
             },
-            'clustering': {  # 聚类模型
-                'K-Means': KMeans(),
+            'clustering': {
+                'K_Means': KMeans(),
                 'PCA': PCA()
             }
         }
-        self.model_param = {  # 定义参数
-            'regression': {  # 回归模型
-                'Linear Regression': {
-                    'fit_intercept': ['true', 'false'],
-                    'normalize': ['true', 'false']
-                },
-                'Polynomial Regression': {
-                    'degree': [1, 2, 3, 4, 5, 6],
-                    'interaction_only': ['true', 'false'],
-                    'include_bias': ['true', 'false']
-                },
-                'Ridge Regression': {
-                    'alpha': [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0],
-                    'fit_intercept': ['true', 'false'],
-                    'tol': [1e1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
-                    "solver": ["auto", "svd", "cholesky", "lsqr", "sparse_cg", "sag", "saga"]
-                },
-                'Lasso Regression': {
-                    'alpha': [0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0],
-                    'fit_intercept': ['true', 'false'],
-                    'tol': [1e1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
-                    'warm_start': ['true', 'false'],
-                    'positive': ['true', 'false'],
-                    'selection': ['cyclic', 'random']
-                },
-                'Decision Tree': {
-                    "criterion": ["friedman_mse", "squared_error", "absolute_error"],
-                    "splitter": ["best", "random"],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-                },
-                'Random Forest': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "criterion": ["friedman_mse", "squared_error", "absolute_error"],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-                },
-                'SVR': {
-                    "C": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "kernel": ["linear", "poly", "rbf", "sigmoid"],
-                    "gamma": ["auto", "scale"]
-                },
-                'KNN Regression': {
-                    "n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21],
-                    "weights": ["uniform", "distance"],
-                    'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
-                },
-                'Bagging Regression': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "max_samples": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "bootstrap": ['true', 'false'],
-                    "bootstrap_features": ['true', 'false']
-                },
-                'AdaBoost Regression': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-                    "loss": ["linear", "square", "exponential"]
-                },
-                'Gradient Boosting': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-                    "max_depth": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                    "min_samples_split": [2, 3, 4, 5, 6, 7, 8, 9, 10],
-                    "min_samples_leaf": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "loss": ["ls", "lad", "huber", "quantile"]
-                }
-            },
-            'classification': {  # 分类模型
-                'Logistic Regression': {
-                    'penalty': ['l1', 'l2', 'elasticnet', 'none'],
-                    'tol': [1e1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7],
-                    'C': [0.1, 0.3, 0.5, 0.7, 0.9, 1.0, 2.0, 2.2, 3.0],
-                    'solver': ['liblinear', 'lbfgs', 'newton-cg', 'saga', 'sag'],
-                    'multi_class': ['auto', 'ovr', 'multinomial'],
-                    'class_weight': ['None', 'balanced'],
-                    'fit_intercept': ['true', 'false']
-                },
-                'Decision Tree': {
-                    "criterion": ["gini", "entropy"],
-                    "splitter": ["best", "random"],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-                },
-                'Random Forest': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "criterion": ["gini", "entropy"],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-                },
-                'SVM': {
-                    "C": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "kernel": ["linear", "poly", "rbf", "sigmoid"],
-                    "gamma": ["auto", "scale"]
-                },
-                'KNN Classification': {
-                    "n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21],
-                    "weights": ["uniform", "distance"],
-                    'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute']
-                },
-                'Bagging Classification': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "max_samples": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "bootstrap": ['true', 'false'],
-                    "bootstrap_features": ['true', 'false']
-                },
-                'AdaBoost Classification': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-                    "algorithm": ["SAMME", "SAMME.R"]
-                },
-                'Gradient Boosting': {
-                    "n_estimators": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                    "learning_rate": [0.01, 0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-                    "max_depth": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                    "min_samples_split": [2, 3, 4, 5, 6, 7, 8, 9, 10],
-                    "min_samples_leaf": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                    "max_features": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                    "loss": ["deviance", "exponential"]
-                }
-            },
-            'clustering': {  # 聚类模型
-                'K-Means': {
-                    'n_clusters': [2, 3, 4, 5, 6],
-                    'init': ['k-means++', 'random']
-                },
-                'PCA': {
-                    'n_components': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-                }
-            }
-        }
+        self.db = db
+
+        self.model_param = self._load_params_from_db()  # 从数据库加载参数
+        print(f"self.model_param: {self.model_param}\n")
+
         self.best_model = None
         self.best_score = 0
         self.scaler = None
+
+    def _load_params_from_db(self):
+        """从数据库加载参数到model_param结构"""
+        params = {
+            'regression': {},
+            'classification': {},
+            'clustering': {}
+        }
+
+        try:
+            # 使用self.db.session进行数据库查询
+            if not hasattr(self.db, 'session'):
+                raise TypeError("self.db does not have a valid session attribute")
+
+            # 获取所有模型参数
+            model_params = self.db.session.query(ModelParameter).all()
+
+            # 构建参数映射
+            for param in model_params:
+                # 获取模型配置信息
+                model_config = self.db.session.query(ModelConfig).get(param.model_config_id)
+                if not model_config:
+                    continue
+
+                # 确定模型类型和名称
+                model_type = model_config.category
+                model_name = model_config.model_type
+
+                # 初始化模型参数容器
+                if model_name not in params[model_type]:
+                    params[model_type][model_name] = {}
+
+                # 处理参数值类型
+                param_name = param.name
+                param_type = param.type
+                param_value = param.default_value
+
+                # 根据类型转换参数值
+                if param_type == 'int':
+                    processed_value = int(param_value)
+                elif param_type == 'float':
+                    processed_value = float(param_value)
+                elif param_type == 'boolean':
+                    processed_value = str(param_value).lower() == 'true'
+                else:
+                    processed_value = param_value
+
+                # 存储处理后的参数
+                params[model_type][model_name][param_name] = [processed_value]
+
+        except Exception as e:
+            print(f"Error loading parameters from database: {str(e)}")
+            import traceback
+            traceback.print_exc()  # 打印详细的堆栈跟踪信息
+
+        return params
 
     def determine_problem_type(self, y):
         """更健壮的问题类型检测"""
@@ -222,12 +150,13 @@ class ModelTrainer:
         pipeline = self.create_pipeline(model_name, normalize, params.get('degree', 2))
 
         # 设置参数
-        if use_default:  # 使用默认参数
+        if use_default: # 使用默认参数
             best_params = self.get_best_params(self.current_problem_type, model_name, X, y)
+            print(f"best_params: {best_params}\n")
             pipeline.set_params(**best_params)
-        else:  # 使用用户自定义的参数
+        else: # 使用用户自定义的参数
             if model_name == 'Polynomial Regression':
-                pipeline.set_params(**{'poly__degree': params.get('degree', 2)})
+                pipeline.set_params(**{'poly__degree':params.get('degree', 2)})
             else:
                 pipeline.set_params(**{f'model__{k}': v for k, v in params.items()})
 
@@ -240,6 +169,7 @@ class ModelTrainer:
             y_pred = pipeline.predict(X_test)
 
             metrics = self.evaluate_model(y_test, y_pred, self.current_problem_type)
+            print(f"metrics: {metrics}\n")
 
             return {
                 'model': pipeline,
@@ -284,7 +214,12 @@ class ModelTrainer:
         train_sizes, train_scores, test_scores = learning_curve(
             model, X, y, cv=cv, n_jobs=-1,
             train_sizes=np.linspace(0.1, 1.0, 5))
-
+        #
+        # return {
+        #     'train_sizes': train_sizes,
+        #     'train_scores': train_scores.mean(axis=1),
+        #     'test_scores': test_scores.mean(axis=1)
+        # }
         return {
             'train_sizes': train_sizes.tolist(),  # 转换为列表
             'train_scores': train_scores.mean(axis=1).tolist(),  # 转换为列表
@@ -313,8 +248,12 @@ class ModelTrainer:
 
     def get_best_params(self, model_type, model_name, X, y):
         """交叉验证选择模型最优参数"""
+        print(f"model_type: {model_type}\n")
+        print(f"model_name: {model_name}\n")
         param_grid = self.model_param[model_type][model_name]
         model = self.models[model_type][model_name]
+        print(f"param_grid: {param_grid}\n")
+        print(f"model: {model}\n")
 
         if model_name == 'Polynomial Regression':
             steps = [
@@ -338,3 +277,4 @@ class ModelTrainer:
         grid_search.fit(X, y)
 
         return grid_search.best_params_
+
