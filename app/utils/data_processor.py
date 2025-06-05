@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Optional, Union, List
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder, RobustScaler
+from sklearn.decomposition import PCA
+from scipy import stats
 
 
 class DataProcessor:
@@ -67,7 +69,7 @@ class DataProcessor:
 
             if strategy == 'mean':
                 if pd.api.types.is_numeric_dtype(df[col]):
-                    df[col] = df[col].fillna(df[col].mean())  # Fixed inplace warning
+                    df[col] = df[col].fillna(df[col].mean())
                 else:
                     # For non-numeric columns, fall back to most_frequent
                     df[col] = df[col].fillna(df[col].mode()[0])
@@ -100,7 +102,7 @@ class DataProcessor:
         """
         应用特征缩放
         :param df: 输入DataFrame
-        :param method: 缩放方法 ('standard', 'minmax')
+        :param method: 缩放方法 ('standard', 'minmax', 'robust')
         :param columns: 要缩放的列列表，None表示处理所有数值列
         :return: 处理后的DataFrame
         """
@@ -111,10 +113,26 @@ class DataProcessor:
         if not columns:
             return df
 
+        # 验证列存在
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"Columns not found in dataset: {', '.join(missing_columns)}")
+
+        # 验证列类型
+        non_numeric_columns = []
+        for col in columns:
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                non_numeric_columns.append(col)
+
+        if non_numeric_columns:
+            raise ValueError(f"Non-numeric columns cannot be scaled: {', '.join(non_numeric_columns)}")
+
         if method == 'standard':
             scaler = StandardScaler()
         elif method == 'minmax':
             scaler = MinMaxScaler()
+        elif method == 'robust':
+            scaler = RobustScaler()
         else:
             raise ValueError(f"Unsupported scaling method: {method}")
 
@@ -157,3 +175,79 @@ class DataProcessor:
             raise ValueError(f"Unsupported encoding method: {method}")
 
         return df
+
+    @staticmethod
+    def apply_pca(
+            df: pd.DataFrame,
+            n_components: int,
+            columns: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """
+        应用主成分分析（PCA）
+        :param df: 输入DataFrame
+        :param n_components: 保留的主成分数量
+        :param columns: 要处理的列列表，None表示处理所有数值列
+        :return: 处理后的DataFrame
+        """
+        df = df.copy()
+        if columns is None:
+            columns = df.select_dtypes(include='number').columns.tolist()
+
+        if not columns:
+            return df
+
+        pca = PCA(n_components=n_components)
+        pca_result = pca.fit_transform(df[columns])
+        pca_columns = [f'PC{i + 1}' for i in range(n_components)]
+        pca_df = pd.DataFrame(pca_result, columns=pca_columns, index=df.index)
+        df = pd.concat([df.drop(columns, axis=1), pca_df], axis=1)
+        return df
+
+    @staticmethod
+    def handle_outliers(
+            df: pd.DataFrame,
+            method: str = 'zscore',
+            threshold: float = 3,
+            columns: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """
+        处理异常值
+        :param df: 输入DataFrame
+        :param method: 处理方法 ('zscore')
+        :param threshold: 阈值
+        :param columns: 要处理的列列表，None表示处理所有数值列
+        :return: 处理后的DataFrame
+        """
+        df = df.copy()
+        if columns is None:
+            columns = df.select_dtypes(include='number').columns.tolist()
+
+        if not columns:
+            return df
+
+        if method == 'zscore':
+            z_scores = np.abs(stats.zscore(df[columns]))
+            df = df[(z_scores < threshold).all(axis=1)]
+        else:
+            raise ValueError(f"Unsupported outlier handling method: {method}")
+
+        return df
+
+    @staticmethod
+    def select_features(
+            df: pd.DataFrame,
+            columns: Optional[List[str]] = None
+    ) -> pd.DataFrame:
+        """
+        选择特征列
+        :param df: 输入DataFrame
+        :param columns: 要保留的列列表，None表示保留所有列
+        :return: 处理后的DataFrame
+        """
+        df = df.copy()
+        if columns is None:
+            return df
+        valid_columns = [col for col in columns if col in df.columns]
+        if not valid_columns:
+            raise ValueError("No valid columns provided for feature selection")
+        return df[valid_columns]

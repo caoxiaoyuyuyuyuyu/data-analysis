@@ -1,4 +1,3 @@
-# preprocessing_routes.py
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +12,8 @@ from app.extensions import db
 import pandas as pd
 
 preprocessing_bp = Blueprint('preprocessing', __name__, url_prefix='/preprocessing')
+
+
 @preprocessing_bp.route('/<int:file_id>/data', methods=['GET'])
 @login_required
 def get_preprocessing_data(file_id):
@@ -53,7 +54,10 @@ def get_preprocessing_data(file_id):
         current_app.logger.error(f"Data processing error: {str(e)}")
         return jsonify({"error": "Data processing failed"}), 500
 
+
 from app.core.data_loader import dataloader
+
+
 def load_dataframe(file_record):
     """加载数据文件到DataFrame"""
     try:
@@ -70,6 +74,60 @@ def get_data_preview(df, rows=10):
         "sample_data": df.head(rows).fillna('').to_dict(orient='records')
     }
 
+
+def process_data_step(df, step_type, params, processor):
+    """根据步骤类型应用预处理步骤"""
+    if step_type == 'missing_values':
+        return processor.handle_missing_values(
+            df,
+            strategy=params.get('strategy', 'mean'),
+            fill_value=params.get('fill_value'),
+            columns=params.get('columns')
+        )
+    elif step_type == 'feature_scaling':
+        # 验证缩放参数
+        method = params.get('method', 'standard')
+        columns = params.get('columns')
+
+        if not columns:
+            raise ValueError("Missing 'columns' parameter for scaling")
+
+        if method not in ['standard', 'minmax', 'robust']:
+            raise ValueError(f"Invalid scaling method: {method}. Must be 'standard', 'minmax' or 'robust'")
+
+        # 执行缩放
+        return processor.apply_feature_scaling(df, method, columns)
+    elif step_type == 'encoding':
+        return processor.encode_categorical(
+            df,
+            method=params.get('method'),
+            columns=params.get('columns')
+        )
+    elif step_type == 'pca':
+        n_components = params.get('n_components', 2)
+        return processor.apply_pca(
+            df,
+            n_components=n_components,
+            columns=params.get('columns')
+        )
+    elif step_type == 'outlier_handling':
+        method = params.get('method', 'zscore')
+        threshold = params.get('threshold', 3)
+        return processor.handle_outliers(
+            df,
+            method=method,
+            threshold=threshold,
+            columns=params.get('columns')
+        )
+    elif step_type == 'feature_selection':
+        return processor.select_features(
+            df,
+            columns=params.get('columns')
+        )
+    else:
+        raise ValueError(f"不支持的步骤类型: {step_type}")
+
+
 @preprocessing_bp.route('/<int:file_id>', methods=['POST'])
 @login_required
 def apply_preprocessing_step(file_id):
@@ -85,21 +143,11 @@ def apply_preprocessing_step(file_id):
         step_data = data['step']
         step_type = step_data['type']
         params = step_data.get('params', {})
-        process_record_id = data['processed_record_id']
-
-        if process_record_id:
-            process_record = PreprocessingRecord.query.filter_by(id=process_record_id).first()
-            ori_file_id = process_record.original_file_id
-        else:
-            ori_file_id = file_id
-            process_record = PreprocessingRecord(
-                user_id=current_user["user_id"],
-                original_file_id=file_id
-            )
+        process_record_id = data.get('processed_record_id')
 
         # Verify file exists and belongs to user
         file_record = UserFile.query.filter_by(
-            id=ori_file_id,
+            id=file_id,
             user_id=current_user["user_id"]
         ).first()
 
@@ -110,56 +158,55 @@ def apply_preprocessing_step(file_id):
         df = load_dataframe(file_record)
         if not isinstance(df, pd.DataFrame):
             return df
+
         # Record stats before processing
         rows_before = df.shape[0]
         cols_before = df.shape[1]
         processor = DataProcessor()
+
+        # 应用预处理步骤
         try:
-            if step_type == 'missing_values':
-                processed_df = processor.handle_missing_values(
-                    df,
-                    strategy=params.get('strategy', 'mean'),
-                    fill_value=params.get('fill_value'),
-                    columns=params.get('columns')
-                )
-            elif step_type == 'feature_scaling':
-                processed_df = processor.apply_feature_scaling(
-                    df,
-                    method=params.get('method'),
-                    columns=params.get('columns')
-                )
-            elif step_type == 'encoding':
-                processed_df = processor.encode_categorical(
-                    df,
-                    method=params.get('method'),
-                    columns=params.get('columns')
-                )
-            else:
-                return jsonify({"error": "Invalid step type"}), 400
+            processed_df = process_data_step(df, step_type, params, processor)
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
+
+        # 保存处理后的数据
+        processed_file = save_processed_data(db, file_record, processed_df)
+        processed_file_id = processed_file.id
 
         # Record stats after processing
         rows_after = processed_df.shape[0]
         cols_after = processed_df.shape[1]
 
-        # Save the processed data back to file
-        processed_file = save_processed_data(db, file_record, processed_df)  # 修改此行
-        processed_file_id = processed_file.id
-        #     rows_ori = db.Column(db.Integer, nullable=False)
-        #     rows_current = db.Column(db.Integer, nullable=False)
-        #     columns_ori = db.Column(db.Integer, nullable=False)
-        #     columns_current = db.Column(db.Integer, nullable=False)
-        process_record.rows_ori = rows_before
-        process_record.rows_current = rows_after
-        process_record.columns_ori = cols_before
-        process_record.columns_current = cols_after
-        process_record.processed_file_id = processed_file_id
-        db.session.add(process_record)
-        db.session.flush()  # 获取生成的ID
+        if process_record_id:
+            # 验证并获取现有处理记录
+            process_record = PreprocessingRecord.query.filter_by(
+                id=process_record_id,
+                user_id=current_user["user_id"]
+            ).first_or_404()
 
-        process_record_id = process_record.id
+            # 更新现有记录
+            process_record.processed_file_id = processed_file_id
+            process_record.rows_ori = rows_before
+            process_record.rows_current = rows_after
+            process_record.columns_ori = cols_before
+            process_record.columns_current = cols_after
+        else:
+            # 创建新的预处理记录，此时processed_file_id已存在
+            process_record = PreprocessingRecord(
+                user_id=current_user["user_id"],
+                original_file_id=file_id,
+                processed_file_id=processed_file_id,  # 设置processed_file_id
+                rows_ori=rows_before,
+                rows_current=rows_after,
+                columns_ori=cols_before,
+                columns_current=cols_after
+            )
+            db.session.add(process_record)
+            db.session.flush()  # 获取生成的ID
+            process_record_id = process_record.id
 
+        # 获取当前所有步骤，确定新步骤的顺序
         steps = PreprocessingStep.query.filter_by(preprocessing_record_id=process_record_id).all()
 
         new_step = PreprocessingStep(
@@ -168,71 +215,32 @@ def apply_preprocessing_step(file_id):
             step_order=len(steps) + 1,
             step_type=step_type,
             parameters=params,
-            duration= (datetime.utcnow() - start_time).total_seconds()
+            duration=(datetime.utcnow() - start_time).total_seconds()
         )
         db.session.add(new_step)
 
         db.session.commit()
+
         return jsonify({
             "process_record_id": process_record_id,
             "processed_file_id": processed_file_id,
-
+            "steps": [step.to_dict() for step in steps + [new_step]]
         })
     except Exception as e:
         current_app.logger.error(f"Preprocessing error: {str(e)}")
-        if processed_file:
-            os.remove(processed_file.file_path)
         db.session.rollback()
         return jsonify({
             "error": "Preprocessing failed",
             "details": str(e)
         }), 500
 
-    #
 
-    #     # Create preprocessing step record
-    #     new_step = PreprocessingStep(
-    #         file_id=file_id,
-    #         step_name=step_type,
-    #         step_order=get_next_step_order(file_id),
-    #         parameters=params
-    #     )
-    #     db.session.add(new_step)
-    #
-    #     # Create history record
-    #     history = PreprocessingHistory(
-    #         file_id=file_id,
-    #         user_id=current_user["user_id"],
-    #         original_filename=original_filename,
-    #         processed_filename=processed_filename,
-    #         operation_type=step_type,
-    #         parameters=params,
-    #         duration=datetime.utcnow() - start_time,
-    #         rows_before=rows_before,
-    #         rows_after=rows_after,
-    #         columns_before=cols_before,
-    #         columns_after=cols_after
-    #     )
-    #     db.session.add(history)
-    #
-    #     db.session.commit()
-    #
-    #     return jsonify({
-    #         "message": f"{step_type} applied successfully",
-    #         "history_id": history.id,
-    #         "stats": {
-    #             "rows_before": rows_before,
-    #             "rows_after": rows_after,
-    #             "columns_before": cols_before,
-    #             "columns_after": cols_after
-    #         }
-    #     })
-    #
 def get_next_step_order(file_id):
     """Get the next step order number for a file"""
     last_step = PreprocessingStep.query.filter_by(file_id=file_id) \
         .order_by(PreprocessingStep.step_order.desc()).first()
     return last_step.step_order + 1 if last_step else 1
+
 
 from pathlib import Path
 import os
@@ -257,7 +265,7 @@ def save_processed_data(db, file_record, df):
         elif file_record.file_type == 'json':
             df.to_json(processed_path, orient='records')
 
-        new_file=UserFile(
+        new_file = UserFile(
             user_id=file_record.user_id,
             file_name=processed_filename,
             file_path=str(processed_path),
@@ -274,6 +282,7 @@ def save_processed_data(db, file_record, df):
 
     except Exception as e:
         db.session.rollback()
-        os.remove(processed_path)
+        if 'processed_path' in locals() and os.path.exists(processed_path):
+            os.remove(processed_path)
         current_app.logger.error(f"Failed to save processed data: {str(e)}")
         raise
