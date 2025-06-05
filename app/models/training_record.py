@@ -8,9 +8,9 @@ class TrainingRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'))
     file_id = db.Column(db.Integer, db.ForeignKey('user_files.id', ondelete='CASCADE'), nullable=False)
-    file_name = db.Column(db.String(255), nullable=False)
+    # file_name = db.Column(db.String(255), nullable=False)
     model_name = db.Column(db.String(100), nullable=False)
-    model_type = db.Column(db.String(100), nullable=False)
+    # model_type = db.Column(db.String(100), nullable=False)
     test_size = db.Column(db.Float, nullable=False)
     target_column = db.Column(db.String(100), nullable=False)
     duration = db.Column(db.Float, nullable=False)  # 改为Float对应DOUBLE PRECISION
@@ -25,16 +25,18 @@ class TrainingRecord(db.Model):
     # 关系定义
     user = db.relationship('User', backref='training_records')
     file = db.relationship('UserFile', backref='training_records')
+    # config = db.relationship('ModelConfig', backref='training_records')
 
     # 添加 to_dict 方法
     def to_dict(self):
+        file_name = self.file.file_name if self.file else None
         return {
             'id': self.id,
             'user_id': self.user_id,
             'file_id': self.file_id,
-            'file_name': self.file_name,
+            'file_name': file_name,
             'model_name': self.model_name,
-            'model_type': self.model_type,
+            # 'model_type': self.model_type,
             'test_size': self.test_size,
             'target_column': self.target_column,
             'duration': self.duration,

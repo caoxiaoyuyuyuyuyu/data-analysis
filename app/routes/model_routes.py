@@ -156,6 +156,7 @@ def update_model_config(model_type):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
 from app.core.model_trainer import ModelTrainer
 from app.core.data_loader import dataloader
 @model_bp.route('/train', methods=['POST'])
@@ -165,6 +166,8 @@ def train_model():
         data = request.get_json()
         current_user = request.user
 
+        print(f"训练数据data:---\n {data}\n---")
+
         # 验证必要字段
         required_fields = ['file_id', 'target_column', 'model_config']
         if not all(field in data for field in required_fields):
@@ -172,6 +175,10 @@ def train_model():
 
         # 获取文件数据
         file = UserFile.query.get(data['file_id'])
+        print(f"file: {file}\n")
+        print(f"file_name: {file.file_name}\n")
+        print(f"file_path: {file.file_path}\n")
+
         if not file:
             return jsonify({'error': 'File not found'}), 404
 
@@ -195,26 +202,27 @@ def train_model():
         test_size = data.get('test_size', 0.2)
         use_default = data.get('use_default', True) # 获取 use_default 参数，如果未提供则默认为 True
 
-        # 扩展模型类型映射
-        model_name_map = {
-            'Linear_Regression': 'Linear Regression',
-            'Ridge_Regression': 'Ridge Regression',
-            'Lasso_Regression': 'Lasso Regression',
-            'Decision_Tree_Regressor': 'Decision Tree',
-            'Random_Forest_Regressor': 'Random Forest',
-            'SVM_Regressor': 'SVR',
-            'KNN_Regressor': 'KNN Regression',
-            'Polynomial_Regression': 'Polynomial Regression',
-            'Logistic_Regression': 'Logistic Regression',
-            'KNN_Classifier': 'KNN Classification',
-            'SVM_Classifier': 'SVM',
-            'Random_Forest_Classifier': 'Random Forest',
-            'Decision_Tree_Classifier': 'Decision Tree',
-            'K_Means': 'K-Means',
-            'PCA': 'PCA'
-        }
+        # # 扩展模型类型映射
+        # model_name_map = {
+        #     'Linear_Regression': 'Linear Regression',
+        #     'Ridge_Regression': 'Ridge Regression',
+        #     'Lasso_Regression': 'Lasso Regression',
+        #     'Decision_Tree_Regressor': 'Decision Tree',
+        #     'Random_Forest_Regressor': 'Random Forest',
+        #     'SVM_Regressor': 'SVR',
+        #     'KNN_Regressor': 'KNN Regression',
+        #     'Polynomial_Regression': 'Polynomial Regression',
+        #     'Logistic_Regression': 'Logistic Regression',
+        #     'KNN_Classifier': 'KNN Classification',
+        #     'SVM_Classifier': 'SVM',
+        #     'Random_Forest_Classifier': 'Random Forest',
+        #     'Decision_Tree_Classifier': 'Decision Tree',
+        #     'K_Means': 'K-Means',
+        #     'PCA': 'PCA'
+        # }
 
-        model_type = model_name_map.get(model_type)
+        # model_type0 = data['model_config']['model_type']
+        # model_type = model_name_map.get(model_type)
         if not model_type:
             return jsonify({'error': f'Unsupported model type: {model_type}'}), 400
 
@@ -241,9 +249,9 @@ def train_model():
         new_model = TrainingRecord(
             user_id=current_user['user_id'],
             file_id=data['file_id'],
-            file_name=file.file_name,
+            # file_name=file.file_name,
             model_name=data['model_name'],
-            model_type=data['model_config']['model_type'],
+            # model_type=data['model_config']['model_type'],
             target_column=data['target_column'],
             test_size=test_size,
             duration=duration,
@@ -266,6 +274,7 @@ def train_model():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
 
 def save_model_to_file(model, model_name,user_id):
     """保存模型到文件并返回路径"""
