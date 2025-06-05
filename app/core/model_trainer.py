@@ -152,7 +152,7 @@ class ModelTrainer:
         # 设置参数
         if use_default: # 使用默认参数
             best_params = self.get_best_params(self.current_problem_type, model_name, X, y)
-            print(f"best_params: {best_params}\n")
+            # print(f"best_params: {best_params}\n")
             pipeline.set_params(**best_params)
         else: # 使用用户自定义的参数
             if model_name == 'Polynomial Regression':

@@ -167,7 +167,7 @@ def train_model():
         data = request.get_json()
         current_user = request.user
 
-        print(f"训练数据data:---\n {data}\n---")
+        # print(f"训练数据data:---\n {data}\n---")
 
         # 验证必要字段
         required_fields = ['file_id', 'target_column', 'model_config']
@@ -176,9 +176,9 @@ def train_model():
 
         # 获取文件数据
         file = UserFile.query.get(data['file_id'])
-        print(f"file: {file}\n")
-        print(f"file_name: {file.file_name}\n")
-        print(f"file_path: {file.file_path}\n")
+        # print(f"file: {file}\n")
+        # print(f"file_name: {file.file_name}\n")
+        # print(f"file_path: {file.file_path}\n")
 
         if not file:
             return jsonify({'error': 'File not found'}), 404
