@@ -41,7 +41,7 @@ def login_required(f):
         else:
             token = auth_header.strip()
 
-        current_app.logger.debug(f"提取的Token: {token}")
+        # current_app.logger.debug(f"提取的Token: {token}")
 
         if not token:
             return jsonify({'error': 'Missing token'}), 401

@@ -1,5 +1,6 @@
 from random import randint, uniform
-
+import lightgbm as lgb
+import xgboost as xgb
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, BaggingClassifier, AdaBoostRegressor, \
     GradientBoostingRegressor, GradientBoostingClassifier, AdaBoostClassifier, BaggingRegressor
 from sklearn.model_selection import train_test_split, learning_curve, RandomizedSearchCV
@@ -8,7 +9,7 @@ from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     mean_squared_error, r2_score, silhouette_score, explained_variance_score, mean_absolute_error
 )
-from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, LogisticRegression
 from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
@@ -26,23 +27,33 @@ class ModelTrainer:
     """增强版模型训练与评估类"""
 
     def __init__(self):
-        self.models = {  # 统一为下划线命名法，与数据库和前端一致
+        self.models = {
             'regression': {
                 'Linear_Regression': LinearRegression(),
-                'Polynomial_Regression': None,  # 特殊处理
+                'Polynomial_Regression': None,
                 'Ridge_Regression': Ridge(),
                 'Lasso_Regression': Lasso(),
                 'Decision_Tree_Regressor': DecisionTreeRegressor(),
-                'Random_Forest_Regressor': RandomForestRegressor(),  # 修正名称
+                'Random_Forest_Regressor': RandomForestRegressor(),
+                'Bagging_Regressor': BaggingRegressor(),  # 确保回归部分也有
+                'AdaBoost_Regressor': AdaBoostRegressor(),
+                'Gradient_Boosting_Regressor': GradientBoostingRegressor(),
                 'SVR': SVR(),
-                'KNN_Regressor': KNeighborsRegressor()
+                'KNN_Regressor': KNeighborsRegressor(),
+                'LightGBM_Regressor': lgb.LGBMRegressor(),  # 新增
+                'XGBoost_Regressor': xgb.XGBRegressor()     # 新增
             },
             'classification': {
                 'Logistic_Regression': LogisticRegression(),
                 'Decision_Tree_Classifier': DecisionTreeClassifier(),
-                'Random_Forest_Classifier': RandomForestClassifier(),  # 修正名称
+                'Random_Forest_Classifier': RandomForestClassifier(),
+                'Bagging_Classifier': BaggingClassifier(),  # 添加缺失的模型
+                'AdaBoost_Classifier': AdaBoostClassifier(),  # 添加缺失的模型
+                'Gradient_Boosting_Classifier': GradientBoostingClassifier(),  # 添加缺失的模型
                 'SVM_Classifier': SVC(probability=True),
-                'KNN_Classifier': KNeighborsClassifier()
+                'KNN_Classifier': KNeighborsClassifier(),
+                'LightGBM_Classifier': lgb.LGBMClassifier(),  # 新增
+                'XGBoost_Classifier': xgb.XGBClassifier()     # 新增
             },
             'clustering': {
                 'K_Means': KMeans(),
@@ -146,6 +157,12 @@ class ModelTrainer:
         if model_name not in self.models[self.current_problem_type]:
             raise ValueError(f"模型 {model_name} 不适用于 {self.current_problem_type} 问题")
 
+        # 如果是分类问题且 y 是字符串标签，进行编码
+        if self.current_problem_type == 'classification' and y.dtype.kind in ['O', 'U', 'S']:
+            self.label_encoder = LabelEncoder()
+            y = self.label_encoder.fit_transform(y)
+            print(f"Encoded labels: {self.label_encoder.classes_} -> {np.unique(y)}")
+
         # 创建管道
         pipeline = self.create_pipeline(model_name, normalize, params.get('degree', 2))
 
@@ -198,6 +215,12 @@ class ModelTrainer:
         metrics = {}
 
         if problem_type == 'classification':
+            # 如果 y_true 是字符串标签，先编码
+            if y_true.dtype.kind in ['O', 'U', 'S']:
+                y_true = self.label_encoder.transform(y_true)
+            if isinstance(y_pred[0], str):  # 如果模型返回字符串预测（如某些概率预测）
+                y_pred = self.label_encoder.transform(y_pred)
+
             metrics['accuracy'] = accuracy_score(y_true, y_pred)
             metrics['precision'] = precision_score(y_true, y_pred, average='weighted')
             metrics['recall'] = recall_score(y_true, y_pred, average='weighted')
@@ -210,22 +233,23 @@ class ModelTrainer:
         return metrics
 
     def get_learning_curve(self, model, X, y, cv=5):
-        """获取学习曲线数据"""
+        """获取学习曲线数据（自动处理NaN值）"""
         train_sizes, train_scores, test_scores = learning_curve(
             model, X, y, cv=cv, n_jobs=-1,
             train_sizes=np.linspace(0.1, 1.0, 5))
-        #
-        # return {
-        #     'train_sizes': train_sizes,
-        #     'train_scores': train_scores.mean(axis=1),
-        #     'test_scores': test_scores.mean(axis=1)
-        # }
-        return {
-            'train_sizes': train_sizes.tolist(),  # 转换为列表
-            'train_scores': train_scores.mean(axis=1).tolist(),  # 转换为列表
-            'test_scores': test_scores.mean(axis=1).tolist()  # 转换为列表
-        }
 
+        # 处理NaN值：转换为None（JSON可序列化为null）
+        def replace_nan(arr):
+            return [None if np.isnan(x) else x for x in arr]
+
+        train_scores_mean = replace_nan(train_scores.mean(axis=1))
+        test_scores_mean = replace_nan(test_scores.mean(axis=1))
+
+        return {
+            'train_sizes': train_sizes.tolist(),
+            'train_scores': train_scores_mean,
+            'test_scores': test_scores_mean
+        }
     def get_cross_val_scores(self, X, y, model_name, params=None, cv=5, scoring=None):
         """获取交叉验证分数用于箱线图比较"""
         if params is None:

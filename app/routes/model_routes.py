@@ -20,7 +20,9 @@ model_bp = Blueprint('model', __name__, url_prefix='/models')
 def get_model_configs():
     try:
         # 获取所有活跃的模型配置
-        configs = ModelConfig.query.filter_by(is_active=True).all()
+        from sqlalchemy import desc
+
+        configs = ModelConfig.query.filter_by(is_active=True).order_by(desc(ModelConfig.created_at)).all()
 
         result = []
         for config in configs:
@@ -206,27 +208,6 @@ def train_model():
         test_size = data.get('test_size', 0.2)
         use_default = data.get('use_default', True) # 获取 use_default 参数，如果未提供则默认为 True
 
-        # 扩展模型类型映射
-        # model_name_map = {
-        #     'Linear_Regression': 'Linear Regression',
-        #     'Ridge_Regression': 'Ridge Regression',
-        #     'Lasso_Regression': 'Lasso Regression',
-        #     'Decision_Tree_Regressor': 'Decision Tree',
-        #     'Random_Forest_Regressor': 'Random Forest',
-        #     'SVM_Regressor': 'SVR',
-        #     'KNN_Regressor': 'KNN Regression',
-        #     'Polynomial_Regression': 'Polynomial Regression',
-        #     'Logistic_Regression': 'Logistic Regression',
-        #     'KNN_Classifier': 'KNN Classification',
-        #     'SVM_Classifier': 'SVM',
-        #     'Random_Forest_Classifier': 'Random Forest',
-        #     'Decision_Tree_Classifier': 'Decision Tree',
-        #     'K_Means': 'K-Means',
-        #     'PCA': 'PCA'
-        # }
-
-        # model_type0 = data['model_config']['model_type']
-        # model_type = model_name_map.get(model_type)
         if not model_type:
             return jsonify({'error': f'Unsupported model type: {model_type}'}), 400
 

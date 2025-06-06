@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, session
 from app.models.file_model import UserFile
 from app.models.preprocessing_record import PreprocessingRecord
 from app.models.preprocessing_step import PreprocessingStep
@@ -70,6 +70,60 @@ def get_data_preview(df, rows=10):
         "sample_data": df.head(rows).fillna('').to_dict(orient='records')
     }
 
+def process_data_step(df, step_type, params, processor):
+    """根据步骤类型应用预处理步骤"""
+    if step_type == 'missing_values':
+        return processor.handle_missing_values(
+            df,
+            strategy=params.get('strategy', 'mean'),
+            fill_value=params.get('fill_value'),
+            columns=params.get('columns')
+        )
+    elif step_type == 'feature_scaling':
+        # 特性	标准化 (Standardization / Z-Score Normalization)	归一化 (Normalization / Min-Max Scaling)	鲁棒缩放 (Robust Scaling)
+        # 核心思想	使数据服从均值为 0，标准差为 1的标准正态分布。	将数据线性变换到指定的范围（通常是 [0, 1]）。	使用中位数和四分位数范围缩放，抵抗异常值。
+        # 验证缩放参数
+        method = params.get('method', 'standard')
+        columns = params.get('columns')
+
+        if not columns:
+            raise ValueError("Missing 'columns' parameter for scaling")
+
+        if method not in ['standard', 'minmax', 'robust']:
+            raise ValueError(f"Invalid scaling method: {method}. Must be 'standard', 'minmax' or 'robust'")
+
+        # 执行缩放
+        return processor.apply_feature_scaling(df, method, columns)
+    elif step_type == 'encoding':
+        return processor.encode_categorical(
+            df,
+            method=params.get('method'),
+            columns=params.get('columns')
+        )
+    elif step_type == 'pca':
+        n_components = params.get('n_components', 2)
+        return processor.apply_pca(
+            df,
+            n_components=n_components,
+            columns=params.get('columns',  None)
+        )
+    elif step_type == 'outlier_handling':
+        method = params.get('method', 'zscore')
+        threshold = params.get('threshold', 3)
+        return processor.handle_outliers(
+            df,
+            method=method,
+            threshold=threshold,
+            columns=params.get('columns')
+        )
+    elif step_type == 'feature_selection':
+        return processor.select_features(
+            df,
+            columns=params.get('columns')
+        )
+    else:
+        raise ValueError(f"不支持的步骤类型: {step_type}")
+
 @preprocessing_bp.route('/<int:file_id>', methods=['POST'])
 @login_required
 def apply_preprocessing_step(file_id):
@@ -90,18 +144,25 @@ def apply_preprocessing_step(file_id):
         if process_record_id:
             process_record = PreprocessingRecord.query.filter_by(id=process_record_id).first()
             ori_file_id = process_record.original_file_id
+            preprocessed_file_id = process_record.processed_file_id
+            # Verify file exists and belongs to user
+            file_record = UserFile.query.filter_by(
+                id=preprocessed_file_id,
+                user_id=current_user["user_id"]
+            ).first()
         else:
             ori_file_id = file_id
             process_record = PreprocessingRecord(
                 user_id=current_user["user_id"],
                 original_file_id=file_id
             )
+            preprocessed_file_id = None
+            file_record = UserFile.query.filter_by(
+                id=ori_file_id,
+                user_id=current_user["user_id"]
+            ).first()
 
-        # Verify file exists and belongs to user
-        file_record = UserFile.query.filter_by(
-            id=ori_file_id,
-            user_id=current_user["user_id"]
-        ).first()
+
 
         if not file_record:
             return jsonify({"error": "File not found"}), 404
@@ -114,28 +175,12 @@ def apply_preprocessing_step(file_id):
         rows_before = df.shape[0]
         cols_before = df.shape[1]
         processor = DataProcessor()
+
+        # 应用预处理步骤
         try:
-            if step_type == 'missing_values':
-                processed_df = processor.handle_missing_values(
-                    df,
-                    strategy=params.get('strategy', 'mean'),
-                    fill_value=params.get('fill_value'),
-                    columns=params.get('columns')
-                )
-            elif step_type == 'feature_scaling':
-                processed_df = processor.apply_feature_scaling(
-                    df,
-                    method=params.get('method'),
-                    columns=params.get('columns')
-                )
-            elif step_type == 'encoding':
-                processed_df = processor.encode_categorical(
-                    df,
-                    method=params.get('method'),
-                    columns=params.get('columns')
-                )
-            else:
-                return jsonify({"error": "Invalid step type"}), 400
+            processed_result = process_data_step(df, step_type, params, processor)
+            current_app.logger.info(f"processed_result: {processed_result}")
+            processed_df = processed_result['processed_df']
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
 
@@ -143,8 +188,9 @@ def apply_preprocessing_step(file_id):
         rows_after = processed_df.shape[0]
         cols_after = processed_df.shape[1]
 
+        current_app.logger.info(f"preprocessed_file_id: {preprocessed_file_id}")
         # Save the processed data back to file
-        processed_file = save_processed_data(db, file_record, processed_df)  # 修改此行
+        processed_file = save_processed_data(db, file_record, processed_df, preprocessed_file_id)  # 修改此行
         processed_file_id = processed_file.id
         #     rows_ori = db.Column(db.Integer, nullable=False)
         #     rows_current = db.Column(db.Integer, nullable=False)
@@ -158,12 +204,12 @@ def apply_preprocessing_step(file_id):
         db.session.add(process_record)
         db.session.flush()  # 获取生成的ID
 
-        process_record_id = process_record.id
+        processed_record_id = process_record.id
 
-        steps = PreprocessingStep.query.filter_by(preprocessing_record_id=process_record_id).all()
+        steps = PreprocessingStep.query.filter_by(preprocessing_record_id=processed_record_id).all()
 
         new_step = PreprocessingStep(
-            preprocessing_record_id=process_record_id,
+            preprocessing_record_id=processed_record_id,
             step_name=step_type,
             step_order=len(steps) + 1,
             step_type=step_type,
@@ -174,14 +220,12 @@ def apply_preprocessing_step(file_id):
 
         db.session.commit()
         return jsonify({
-            "process_record_id": process_record_id,
+            "processed_record_id": processed_record_id,
             "processed_file_id": processed_file_id,
-
+            "details": processed_result.pop("processed_df")
         })
     except Exception as e:
         current_app.logger.error(f"Preprocessing error: {str(e)}")
-        if processed_file:
-            os.remove(processed_file.file_path)
         db.session.rollback()
         return jsonify({
             "error": "Preprocessing failed",
@@ -238,8 +282,28 @@ from pathlib import Path
 import os
 
 
-def save_processed_data(db, file_record, df):
+def save_processed_data(db, file_record, df, preprocessed_file_id):
     try:
+        if preprocessed_file_id:
+            processed_file = UserFile.query.filter_by(id=preprocessed_file_id).first()
+            if processed_file:
+                processed_path = processed_file.file_path
+                current_app.logger.info(f"processed_path: {processed_path}")
+                ori_df =  dataloader.load_file(processed_path)
+                current_app.logger.info(f"ori_df: {ori_df.columns}")
+                current_app.logger.info(f"df: {df.columns}")
+                # 保存到新路径
+                if file_record.file_type == 'csv':
+                    df.to_csv(processed_path, index=False)
+                elif file_record.file_type in ['xlsx', 'xls']:
+                    df.to_excel(processed_path, index=False)
+                elif file_record.file_type == 'json':
+                    df.to_json(processed_path, orient='records')
+                processed_file.file_size = os.path.getsize(processed_path)
+                db.session.add(processed_file)
+                db.session.flush()  # 获取生成的ID
+                return processed_file
+
         original_path = Path(file_record.file_path)
         processed_dir = original_path.parent / "processed"
         os.makedirs(processed_dir, exist_ok=True)  # 创建processed目录
@@ -274,6 +338,6 @@ def save_processed_data(db, file_record, df):
 
     except Exception as e:
         db.session.rollback()
-        os.remove(processed_path)
+        # os.remove(processed_path)
         current_app.logger.error(f"Failed to save processed data: {str(e)}")
         raise
