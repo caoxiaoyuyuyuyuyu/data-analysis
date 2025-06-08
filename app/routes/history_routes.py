@@ -5,6 +5,7 @@ from app.models.preprocessing_step import PreprocessingStep
 from app.models.training_record import TrainingRecord
 from app.models.predict_record import PredictRecord
 from app.models.preprocessing_record import PreprocessingRecord
+from app.models.stacking_training_record import StackingTrainingRecord
 from app.utils.jwt_utils import login_required
 from app.extensions import db
 from datetime import datetime
@@ -173,3 +174,29 @@ def get_preprocessing_history():
     except Exception as e:
         current_app.logger.error(f"Get preprocessing history error: {str(e)}")
         return jsonify({"error": "Failed to get preprocessing history"}), 500
+
+
+@history_bp.route('/stackingtraining', methods=['GET'])
+@login_required
+def get_stacking_training_records():
+    try:
+        records = StackingTrainingRecord.query.all()
+        return jsonify([{
+            'id': record.id,
+            'input_file_id': record.input_file_id,
+            'task_type': record.task_type,
+            'base_model_names': record.base_model_names,
+            'meta_model_name': record.meta_model_name,
+            'cross_validation': record.cross_validation,
+            'target': record.target,
+            'model_id': record.model_id,
+            'model_path': record.model_path,
+            'start_time': record.start_time.isoformat() if record.start_time else None,
+            'end_time': record.end_time.isoformat() if record.end_time else None,
+            'metrics': record.metrics,
+            'created_at': record.created_at.isoformat() if record.created_at else None,
+            'updated_at': record.updated_at.isoformat() if record.updated_at else None
+        } for record in records])
+    except Exception as e:
+        current_app.logger.error(f"Get training history error: {str(e)}")
+        return jsonify({"error": "Failed to get training history"}), 500
