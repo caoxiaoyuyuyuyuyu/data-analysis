@@ -1,5 +1,5 @@
 import joblib
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import os
 from datetime import datetime
 import pandas as pd
@@ -34,6 +34,7 @@ def train_stacking_model():
         task_type = data.get('task_type', 'classification')
         cross_validation = data.get('cross_validation', 5)
         target = data.get('target')
+        model_id  = data.get('model_name')
 
         # 2. 参数校验
         if not input_file_id:
@@ -49,7 +50,8 @@ def train_stacking_model():
         except ValueError as e:
             return jsonify({'error': str(e)}), 404
 
-        df = pd.read_csv(data_path)
+        from app.core.data_loader import dataloader
+        df = dataloader.load_file(data_path)
         X = df.drop(target, axis=1)
         y = df[target]
 
@@ -62,8 +64,10 @@ def train_stacking_model():
         trainer.set_meta_model(meta_model_name)
         trainer.build_model()
 
+        start_time = datetime.now()
         # 6. 训练模型
         trainer.train(X_train, y_train)
+        end_time = datetime.now()
 
         # 7. 评估模型
         metrics = trainer.evaluate(X_test, y_test)
@@ -81,8 +85,8 @@ def train_stacking_model():
             target=target,
             model_id=model_id,
             model_path=model_path,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
+            start_time=start_time,
+            end_time=end_time,
             metrics=metrics
         )
 
@@ -91,12 +95,18 @@ def train_stacking_model():
 
         # 10. 返回成功响应
         return jsonify({
-            'model_id': model_id,
-            'metrics': metrics
+            'id': model_id,
+            'model_name': model_id,
+            'model_file_path': model_path,
+            'model_file_size': os.path.getsize(model_path),
+            'created_at': datetime.now(),
+            'duration': (end_time - start_time).total_seconds(),
+            'metrics': metrics,
         })
 
     except Exception as e:
         db.session.rollback()
+        current_app.logger.error(str(e))
         return jsonify({'error': str(e)}), 500
 
 
