@@ -10,6 +10,9 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.svm import SVC, SVR
 from sklearn.naive_bayes import GaussianNB
+
+from app.core.model_trainer import ModelTrainer
+
 # from xgboost import XGBClassifier, XGBRegressor
 # from lightgbm import LGBMClassifier, LGBMRegressor
 
@@ -50,6 +53,7 @@ class StackingTrainer:
         self.base_models = []
         self.meta_model = None
         self.metrics = {}
+        self.model_trainer = ModelTrainer()
 
     def set_base_models(self, model_names):
         """设置基模型"""
@@ -100,10 +104,7 @@ class StackingTrainer:
     def evaluate(self, X_test, y_test):
         """模型评估"""
         preds = self.model.predict(X_test)
-        if self.task_type == 'classification':
-            self.metrics['accuracy'] = accuracy_score(y_test, preds)
-        else:
-            self.metrics['mse'] = mean_squared_error(y_test, preds)
+        self.metrics = self.model_trainer.evaluate_model(y_test, preds, self.task_type)
         return self.metrics
 
     def save_model(self, model_dir='models'):
