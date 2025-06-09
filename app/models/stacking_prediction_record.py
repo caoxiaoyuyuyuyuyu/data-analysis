@@ -33,3 +33,16 @@ class StackingPredictionRecord(db.Model):
         "StackingTrainingRecord",
         back_populates="stacking_prediction_records"
     )
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'training_record_id': self.training_record_id,
+            'input_file_id': self.input_file_id,
+            'user_id': self.user_id,
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'result_path': self.result_path,
+            'result_summary': self.result_summary,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }

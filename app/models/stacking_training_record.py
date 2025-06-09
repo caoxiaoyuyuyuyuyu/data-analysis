@@ -5,6 +5,7 @@ class StackingTrainingRecord(db.Model):
     __tablename__ = 'stacking_training_records'
 
     id = db.Column(db.Integer, primary_key=True)
+    # user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     input_file_id = db.Column(db.Integer, db.ForeignKey('user_files.id', ondelete='CASCADE'), nullable=False)
     task_type = db.Column(db.String(50), nullable=False)
     base_model_names = db.Column(db.ARRAY(db.String(255)), nullable=False)
@@ -26,3 +27,21 @@ class StackingTrainingRecord(db.Model):
         back_populates="stacking_training_record",
         cascade="all, delete-orphan"
     )
+    # user = db.relationship('User', back_populates='stacking_training_records')
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'input_file_id': self.input_file_id,
+            'task_type': self.task_type,
+            'base_model_names': self.base_model_names,
+            'meta_model_name': self.meta_model_name,
+            'cross_validation': self.cross_validation,
+            'target': self.target,
+            'model_id': self.model_id,
+            'model_path': self.model_path,
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'metrics': self.metrics,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }

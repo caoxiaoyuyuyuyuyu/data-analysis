@@ -2,6 +2,8 @@
 from flask import Blueprint, jsonify, request, current_app
 
 from app.models.preprocessing_step import PreprocessingStep
+from app.models.stacking_prediction_record import StackingPredictionRecord
+from app.models.stacking_training_record import StackingTrainingRecord
 from app.models.training_record import TrainingRecord
 from app.models.predict_record import PredictRecord
 from app.models.preprocessing_record import PreprocessingRecord
@@ -173,3 +175,29 @@ def get_preprocessing_history():
     except Exception as e:
         current_app.logger.error(f"Get preprocessing history error: {str(e)}")
         return jsonify({"error": "Failed to get preprocessing history"}), 500
+
+@history_bp.route('/stacking_traing', methods=['GET'])
+@login_required
+def get_stacking_training_history():
+    try:
+        current_user = request.user
+        # records = StackingTrainingRecord.query.filter_by(
+        #     user_id=current_user["user_id"]
+        # ).order_by(StackingTrainingRecord.start_time.desc()).all()
+        records = StackingTrainingRecord.query.all()
+        return jsonify([record.to_dict() for record in records])
+    except Exception as e:
+        current_app.logger.error(f"Get stacking training history error: {str(e)}")
+        return jsonify({"error": "Failed to get stacking training history"}), 500
+
+@history_bp.route('/stacking_prediction', methods=['GET'])
+@login_required
+def get_stacking_prediction_history():
+    try:
+        current_user = request.user
+        records = StackingPredictionRecord.query.filter_by(
+            user_id=current_user["user_id"]
+        ).order_by(StackingPredictionRecord.start_time.desc()).all()
+        return jsonify([record.to_dict() for record in records])
+    except Exception as e:
+        current_app.logger.error(f"Get stacking prediction history error: {str(e)}")

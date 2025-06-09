@@ -13,9 +13,12 @@ from app.core.model_predictor import ModelPredictor
 import pandas as pd
 import json
 
+from app.utils.jwt_utils import login_required
+
 predict_bp = Blueprint('predict', __name__, url_prefix='/predict')
 
 @predict_bp.route('/check', methods=['POST'])
+@login_required
 def check_file():
     data = request.get_json()
     file_id = data.get('file_id')
@@ -63,6 +66,7 @@ def check_file():
     })
 
 @predict_bp.route('', methods=['POST'])
+@login_required
 def predict():
     data = request.get_json()
     training_record_id = data.get('training_record_id')

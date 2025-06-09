@@ -4,11 +4,16 @@ import os
 from datetime import datetime
 import pandas as pd
 from sklearn.model_selection import train_test_split
+
+from app.core.data_loader import dataloader
+from app.core.model_predictor import ModelPredictor
 from app.core.stacking_trainer import StackingTrainer
 from app.models.stacking_training_record import StackingTrainingRecord
 from app.models.stacking_prediction_record import StackingPredictionRecord
 from app.models.file_model import UserFile
 from app.extensions import db
+from app.routes.predict_routes import save_result_file
+from app.utils.jwt_utils import login_required
 
 stacking_bp = Blueprint('stacking', __name__, url_prefix='/stacking')
 
@@ -111,81 +116,148 @@ def train_stacking_model():
 
 
 @stacking_bp.route('/predict', methods=['POST'])
+@login_required
 def predict_stacking_model():
     try:
         data = request.json
 
         # 1. 获取请求参数
-        model_id = data.get('model_id')
-        file_id = data.get('file_id')
+        training_record_id = data.get('training_record_id')
+        input_file_id = data.get('input_file_id')
+        current_user = request.user
 
-        if not model_id or not file_id:
-            return jsonify({'error': 'Missing model_id or file_id'}), 400
+        if not training_record_id or not input_file_id:
+            return jsonify({"error": "必须提供 training_record_id 和 input_file_id"}), 400
 
         # 2. 查询训练记录（通过 model_id）
-        record = StackingTrainingRecord.query.filter_by(model_id=model_id).first()
-        if not record:
-            return jsonify({'error': f"No training record found for model_id: {model_id}"}), 404
+        training_record = StackingTrainingRecord.query.get(training_record_id)
+        if not training_record:
+            return jsonify({"error": "未找到指定的训练记录"}), 404
 
         # 3. 获取模型信息
-        model_path = record.model_path
-        target_column = record.target
-        task_type = record.task_type
+        target_column = training_record.target
+        task_type = training_record.task_type
 
+        # 获取输入文件记录
+        user_file = UserFile.query.get(input_file_id)
+        if not user_file:
+            return jsonify({"error": "未找到指定的输入文件"}), 404
+
+        model_path = training_record.model_path
         if not os.path.exists(model_path):
             return jsonify({'error': 'Model file not found'}), 404
 
-        # 4. 加载模型
-        model = joblib.load(model_path)
-
-        # 5. 加载预测数据
+        # 读取输入文件
         try:
-            data_path = get_data_path_from_id(file_id)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 404
+            X = dataloader.load_file(user_file.file_path)
+        except Exception as e:
+            return jsonify({"error": f"读取文件失败: {e}"}), 500
 
-        if not os.path.exists(data_path):
-            return jsonify({'error': 'Data file not found at the specified path'}), 404
+        y_true = None
+        if target_column in X.columns:
+            y_true = X[target_column]
+            X.drop(columns=[target_column], inplace=True)
+        # 加载模型
+        try:
+            predictor = ModelPredictor(model_path, model_type=task_type)
+        except Exception as e:
+            return jsonify({"error": f"加载模型失败: {e}"}), 500
 
-        df = pd.read_csv(data_path)
+        # 执行预测
+        try:
+            start_time = datetime.utcnow()
+            y_pred = predictor.predict(X)
 
-        # 6. 数据预处理（与训练一致）
-        if target_column in df.columns:
-            X = df.drop(target_column, axis=1)
-        else:
-            X = df.copy()
+            # 新增可视化数据生成
+            visualization_data = predictor.generate_visualization_data(
+                X, y_pred,
+                y_true,
+                target_column,
+                task_type
+            )
+        except Exception as e:
+            return jsonify({"error": f"预测失败: {e}"}), 500
 
-        # 7. 执行预测
-        predictions = model.predict(X)
+        X['prediction'] = y_pred
+        result_data = X.to_dict(orient='records')  # 转换为字典列表用于返回
 
-        # 8. 构建结果摘要
-        result_summary = {
-            'total_predictions': len(predictions),
-            'task_type': task_type,
-            'target_column': target_column
-        }
+        result_file_name = f"{user_file.file_name.split('.')[0]}_prediction" + str(
+            int(datetime.utcnow().timestamp())) + "." + user_file.file_type
+        try:
+            result_file_path = save_result_file(X, user_file.user_id, result_file_name, user_file.file_type)
+        except Exception as e:
+            return jsonify({"error": f"保存预测结果文件失败: {e}"}), 500
 
-        # 9. 构造预测记录并保存
-        prediction_record = StackingPredictionRecord(
-            training_record_id=record.id,
-            input_file_id=file_id,
-            user_id=record.file.user_id,  # 从 UserFile 获取用户 ID
-            start_time=datetime.now(),
-            end_time=datetime.now(),
-            result_summary=result_summary,
-            result_path=f'/predictions/{model_id}_{file_id}.csv'  # 示例路径
-        )
+        try:
+            # 9. 构造预测记录并保存
+            prediction_record = StackingPredictionRecord(
+                training_record_id=training_record.id,
+                input_file_id=input_file_id,
+                user_id=current_user['user_id'],  # 从 UserFile 获取用户 ID
+                start_time=start_time,
+                end_time=datetime.now(),
+                result_summary=visualization_data,
+                result_path=result_file_path  # 示例路径
+            )
+            db.session.add(prediction_record)
+            db.session.commit()
 
-        db.session.add(prediction_record)
-        db.session.commit()
-
-        # 10. 返回结果
-        return jsonify({
-            'task_type': task_type,
-            'target_column': target_column,
-            'predictions': predictions.tolist()
-        })
-
+            # 返回响应
+            return jsonify({
+                "prediction_record": prediction_record.to_dict(),
+                "predict_data": result_data,
+                "visualization": visualization_data  # 新增可视化数据
+            }), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"保存预测结果文件失败: {e}"}), 500
     except Exception as e:
         # 不再保存失败记录
         return jsonify({'error': str(e)}), 500
+
+@stacking_bp.route('/check', methods=['POST'])
+def check_file():
+    data = request.get_json()
+    file_id = data.get('file_id')
+    model_id = data.get('model_id')
+
+    # 获取模型训练时的特征列
+    training_record = StackingTrainingRecord.query.get(model_id)
+    if not training_record:
+        return jsonify({"error": "模型不存在"}), 404
+
+    train_file = UserFile.query.get(training_record.input_file_id)
+    if not train_file:
+      return jsonify({"error": "文件不存在"}), 404
+
+    train_df = dataloader.load_file(train_file.file_path)
+
+    # expected_columns = train_df.columns.tolist() - [training_record.target_column]
+    expected_columns = list(set(train_df.columns.tolist()) - {training_record.target})
+
+    # current_app.logger.info(f"训练文件列：{expected_columns}")
+    # expected_columns = json.loads(training_record.feature_columns)  # 假设存储为JSON字符串
+
+    # 获取文件的列
+    user_file = UserFile.query.get(file_id)
+    if not user_file:
+        return jsonify({"error": "文件不存在"}), 404
+
+    try:
+        df = dataloader.load_file(user_file.file_path)
+
+        actual_columns = df.columns.tolist()
+    except Exception as e:
+        return jsonify({"error": f"读取文件失败: {e}"}), 500
+    # current_app.logger.info(f"实际列：{actual_columns}")
+    # 比较列
+    missing = set(expected_columns) - set(actual_columns)
+    extra = set(actual_columns) - set(expected_columns)
+    # current_app.logger.info(f"列匹配结果：{missing} {extra}")
+    return jsonify({
+        "valid": len(missing) == 0,
+        "missing_columns": list(missing),
+        "extra_columns": list(extra),
+        "expected_columns": expected_columns,
+        "message": f"缺少{len(missing)}列，多余{len(extra)}列" if missing or extra else "列匹配"
+    })

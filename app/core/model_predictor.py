@@ -1,12 +1,13 @@
 import joblib
 import os
 
+import numpy as np
 import pandas as pd
 from flask import current_app
 from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    mean_squared_error, r2_score, silhouette_score
+    mean_squared_error, r2_score, silhouette_score, mean_absolute_error
 )
 
 class ModelPredictor:
@@ -86,7 +87,8 @@ class ModelPredictor:
                 elif model_category == 'regression':
                     viz_data['basic_metrics'] = {
                         'mse': mean_squared_error(y_true, y_pred),
-                        'r2': r2_score(y_true, y_pred)
+                        'r2': r2_score(y_true, y_pred),
+                        'mae': mean_absolute_error(y_true, y_pred)
                     }
 
             # 2. 特征重要性
